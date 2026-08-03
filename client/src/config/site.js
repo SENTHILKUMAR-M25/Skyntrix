@@ -3,7 +3,7 @@ export const SITE = {
   shortName: "Skyntrix",
   tagline: "Building Digital Experiences That Drive Growth",
   url: "https://skyntrix.com",
-  email: "hello@skyntrix.com",
+  email: "skyntrixtechnologies@gmail.com",
   careersEmail: "careers@skyntrix.com",
   phone: "+91 98765 43210",
   whatsapp: "919876543210",
