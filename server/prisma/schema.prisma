@@ -1,0 +1,122 @@
+// Quick Park - Prisma schema
+// Single source of truth for authentication (Auth) with role-based
+// 1:1 profiles (UserProfile for drivers, ProviderProfile for parking owners).
+// All future domain modules (Bookings, ParkingSpaces, Reviews, Notifications,
+// Wallet, Payments) must reference Auth.id for a universal identity.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===== Enums =====
+
+enum Role {
+  USER
+  PROVIDER
+  ADMIN
+}
+
+enum AccountStatus {
+  ACTIVE
+  BLOCKED
+  DELETED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum ProviderType {
+  INDIVIDUAL
+  COMPANY
+  OWNER
+  PARTNER
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+// ===== Auth (parent) =====
+
+model Auth {
+  id              String        @id @default(uuid()) @db.Uuid
+  fullName        String
+  email           String        @unique
+  phone           String        @unique
+  password        String
+  role            Role          @default(USER)
+  isEmailVerified Boolean       @default(false)
+  isPhoneVerified Boolean       @default(false)
+  accountStatus   AccountStatus @default(ACTIVE)
+  profileImage    String?
+  lastLogin       DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  userProfile     UserProfile?
+  providerProfile ProviderProfile?
+
+  @@index([role])
+  @@index([accountStatus])
+}
+
+// ===== User (driver profile) =====
+
+model UserProfile {
+  id                   String   @id @default(uuid()) @db.Uuid
+  authId               String   @unique @db.Uuid
+  gender               Gender?
+  dateOfBirth          DateTime?
+  address              String?
+  emergencyContact     String?
+  preferredLanguage    String   @default("en")
+  notificationSettings Json?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  auth Auth @relation(fields: [authId], references: [id], onDelete: Cascade)
+
+  @@index([authId])
+}
+
+// ===== Provider (parking owner profile) =====
+
+model ProviderProfile {
+  id                         String             @id @default(uuid()) @db.Uuid
+  authId                     String             @unique @db.Uuid
+  providerType               ProviderType       @default(OWNER)
+  businessName               String
+  businessRegistrationNumber String?
+  gstNumber                  String?
+  governmentId               String?
+  businessLicense            String?
+  verificationStatus         VerificationStatus @default(PENDING)
+  walletBalance              Decimal            @default(0) @db.Decimal(12, 2)
+  rating                     Decimal            @default(0) @db.Decimal(3, 2)
+  totalBookings              Int                @default(0)
+  totalRevenue               Decimal            @default(0) @db.Decimal(12, 2)
+  bankAccountName            String?
+  bankAccountNumber          String?
+  ifscCode                   String?
+  upiId                      String?
+  address                    String?
+  location                   Json?
+  createdAt                  DateTime           @default(now())
+  updatedAt                  DateTime           @updatedAt
+
+  auth Auth @relation(fields: [authId], references: [id], onDelete: Cascade)
+
+  @@index([authId])
+  @@index([verificationStatus])
+}

@@ -1,0 +1,33 @@
+import { Router } from "express";
+import authRoutes from "./auth.routes.js";
+import serviceRoutes from "./service.routes.js";
+import portfolioRoutes from "./portfolio.routes.js";
+import teamRoutes from "./team.routes.js";
+import testimonialRoutes from "./testimonial.routes.js";
+import blogRoutes from "./blog.routes.js";
+import careerRoutes from "./career.routes.js";
+import leadRoutes from "./lead.routes.js";
+import newsletterRoutes from "./newsletter.routes.js";
+import settingsRoutes from "./settings.routes.js";
+import dashboardRoutes from "./dashboard.routes.js";
+import healthRoutes from "./health.routes.js";
+
+const router = Router();
+
+router.get("/", (req, res) =>
+  res.status(200).json({ success: true, message: "Skyntrix API", endpoints: "/api/v1/..." })
+);
+router.use("/health", healthRoutes);
+router.use("/auth", authRoutes);
+router.use("/services", serviceRoutes);
+router.use("/portfolio", portfolioRoutes);
+router.use("/team", teamRoutes);
+router.use("/testimonials", testimonialRoutes);
+router.use("/blogs", blogRoutes);
+router.use("/careers", careerRoutes);
+router.use("/leads", leadRoutes);
+router.use("/newsletter", newsletterRoutes);
+router.use("/settings", settingsRoutes);
+router.use("/dashboard", dashboardRoutes);
+
+export default router;
