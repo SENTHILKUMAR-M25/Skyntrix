@@ -2,9 +2,10 @@ import axios from "axios";
 import { API_URL } from "../config/site";
 
 export const TOKEN_KEY = "skyntrix_admin_token";
+export const API_BASE = API_URL.length ? API_URL.replace(/\/$/, "") : "/api";
 
 const api = axios.create({
-  baseURL: API_URL.length ? API_URL.replace(/\/$/, "") : "/api",
+  baseURL: API_BASE,
   withCredentials: true,
   headers: { "Content-Type": "application/json" },
 });

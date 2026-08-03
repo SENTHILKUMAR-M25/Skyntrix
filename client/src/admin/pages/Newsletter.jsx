@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { FaSearch, FaTrash, FaFileDownload } from "react-icons/fa";
-import { adminGet, adminDelete } from "../api";
+import { adminGet, adminDelete, API_BASE } from "../api";
 import { useToast } from "../Toast";
 import { Badge, Button, EmptyState, Input, Loading, Modal, PageHeader } from "../components/Ui";
 
@@ -49,7 +49,7 @@ export default function Newsletter() {
         title="Newsletter"
         subtitle="Manage email subscribers"
         action={
-          <Button variant="secondary" onClick={() => window.open("/api/newsletter/admin/export", "_self")}>
+          <Button variant="secondary" onClick={() => window.open(`${API_BASE}/newsletter/admin/export`, "_self")}>
             <FaFileDownload /> Export CSV
           </Button>
         }

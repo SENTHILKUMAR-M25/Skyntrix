@@ -4,8 +4,9 @@
 import { services as staticServices } from "../data/services";
 import { testimonials as staticTestimonials, team as staticTeam, blogPosts as staticBlogPosts } from "../data/content";
 import { projects as staticProjects, categories as staticCategories, industries as staticIndustries } from "../data/portfolio";
+import { API_URL } from "../config/site";
 
-const API = "/api";
+const API = (API_URL || "/api").replace(/\/$/, "");
 
 async function get(path) {
   const res = await fetch(`${API}${path}`);

@@ -1,11 +1,13 @@
+import { forwardRef } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { FaArrowRight } from "react-icons/fa6";
 import ProjectVisual from "./ProjectVisual";
 
-export default function ProjectCard({ project, index = 0 }) {
+const ProjectCard = forwardRef(function ProjectCard({ project, index = 0 }, ref) {
   return (
     <motion.div
+      ref={ref}
       layout
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
@@ -30,4 +32,6 @@ export default function ProjectCard({ project, index = 0 }) {
       </Link>
     </motion.div>
   );
-}
+});
+
+export default ProjectCard;
