@@ -2,7 +2,7 @@ export const SITE = {
   name: "Skyntrix Technologies",
   shortName: "Skyntrix",
   tagline: "Building Digital Experiences That Drive Growth",
-  url: "https://skyntrix.com",
+  url: "https://skyntrix.vercel.app",
   email: "skyntrixtechnologies@gmail.com",
   careersEmail: "careers@skyntrix.com",
   phone: "+91 98765 43210",
