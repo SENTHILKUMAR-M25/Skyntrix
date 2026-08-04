@@ -2,6 +2,10 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 
+// Dev-only proxy target (local backend). The app never uses this URL directly;
+// it calls relative /api and /uploads paths which this dev server forwards here.
+const DEV_API_TARGET = process.env.DEV_API_TARGET || "http://localhost:5001";
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -13,11 +17,11 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api": {
-        target: process.env.VITE_API_URL || "http://localhost:5000",
+        target: DEV_API_TARGET,
         changeOrigin: true,
       },
       "/uploads": {
-        target: process.env.VITE_API_URL || "http://localhost:5000",
+        target: DEV_API_TARGET,
         changeOrigin: true,
       },
     },

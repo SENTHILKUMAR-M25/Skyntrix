@@ -22,4 +22,4 @@ export const SITE = {
 export const whatsAppLink = (msg = "Hi Skyntrix Technologies! I'd like to discuss a project.") =>
   `https://wa.me/${SITE.whatsapp}?text=${encodeURIComponent(msg)}`;
 
-export const API_URL = (import.meta.env.VITE_API_URL || "https://skyntrix.onrender.com").replace(/\/$/, "");
+export const API_URL = (import.meta.env.VITE_API_URL || "https://skyntrix.onrender.com/api").replace(/\/$/, "");
