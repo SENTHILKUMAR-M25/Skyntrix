@@ -8,6 +8,9 @@ export class ApiResponse {
   }
 
   static ok(res, message = "Success", data = null, meta = null, statusCode = 200) {
+    // Explicit charset keeps emojis (multibyte UTF-8) intact when a client
+    // or proxy reads the JSON body instead of trusting the default header.
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
     return res.status(statusCode).json(new ApiResponse(true, message, data, meta, statusCode));
   }
 

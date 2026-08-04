@@ -27,38 +27,126 @@ export const SEND_LOG_STATUS_OPTIONS = [
 
 export const WEBSITE_URL = "https://skyntrix.vercel.app/";
 
-const TEMPLATE = `👋 Hello!
+
+/**
+ * Unicode emoji + box-drawing constants.
+ *
+ * IMPORTANT: Every emoji is declared as a Unicode code-point escape (`\u{...}`)
+ * instead of a literal emoji character, so the source file only contains ASCII
+ * bytes. This makes the template immune to corruption when a file is saved or
+ * read with a non-UTF-8 encoding (e.g. Windows-1252 / Latin-1), which is what
+ * turns emojis into the U+FFFD replacement character (`�`).
+ */
+const EMOJI = {
+  wave: "\u{1F44B}",            // 👋
+  building: "\u{1F3E2}",        // 🏢
+  memo: "\u{1F4DD}",            // 📝
+  demo: "\u{1F3A5}",            // 🎥
+  globe: "\u{1F310}",           // 🌐
+  plate: "\u{1F37D}\u{FE0F}",   // 🍽️
+  car: "\u{1F697}",             // 🚗
+  chart: "\u{1F4CA}",           // 📊
+  phone: "\u{1F4F1}",           // 📱
+  briefcase: "\u{1F4BC}",       // 💼
+  sparkle: "\u{2728}",          // ✨
+  heavyMinus: "\u{2501}",       // ━
+};
+
+/** ━━━━━━━━━━━━━━━━━━ (18 heavy horizontal lines) */
+const RULE = EMOJI.heavyMinus.repeat(18);
+
+const TEMPLATE = `${EMOJI.wave} Hello!
+
 Thank you for your interest in Skyntrix.
-━━━━━━━━━━━━━━━━━━
+
+_________________
+
 🏢 Business Name
 {businessName}
-📝 Summary
+
+📝 About Your Project
 {summary}
-🌐 Demo
+
+🌐 Live Demo
 {demoLink}
-💻 Website
+
+🏢  Our Website
 {websiteLink}
-━━━━━━━━━━━━━━━━━━
-We specialize in:
+
+
+
+At Skyntrix, we build modern, scalable, and business-focused digital solutions, including:
+
 ✅ Business Websites
 ✅ Restaurant Websites
 ✅ Hotel Websites
+✅ E-Commerce Websites
 ✅ Parking Management Systems
 ✅ CRM Software
 ✅ ERP Solutions
 ✅ Mobile Applications
 ✅ Custom Web Applications
-If you'd like a free consultation or live demo, simply reply to this message.
-Thank you!
-Regards,
-Skyntrix Team`;
+Simply reply to this message, and our team will get in touch with you.
+
+_________________________
+
+Best Regards,
+
+Skyntrix Team
+Building Smart Digital Solutions
+
+🌐 {websiteLink}
+`;
+
+const REPLACEMENT_CHAR = "\uFFFD";
+
+/**
+ * Self-heal a template corrupted by a non-UTF-8 read/write (see EMOJI).
+ * Each U+FFFD (`�`) is matched by its surrounding text and restored to the
+ * correct emoji; uncorrupted messages pass through unchanged.
+ */
+const repairCorruptedEmojis = (message) => {
+  if (!message || !message.includes(REPLACEMENT_CHAR)) return message;
+
+  let repaired = message;
+  const repairs = [
+    [/\uFFFD+\s*Hello!/, `${EMOJI.wave} Hello!`],
+    [/\uFFFD+\s*Business Name/, `${EMOJI.building} Business Name`],
+    [/\uFFFD+\s*About Your Project/, `${EMOJI.memo} About Your Project`],
+    [/\uFFFD+\s*Live Demo/, `${EMOJI.demo} Live Demo`],
+    [/\uFFFD+\s*Our Website/, `${EMOJI.globe} Our Website`],
+    [/\uFFFD+\s*Business & Corporate Websites/, `${EMOJI.globe} Business & Corporate Websites`],
+    [/\uFFFD+\s*Restaurant & Hotel Websites/, `${EMOJI.plate} Restaurant & Hotel Websites`],
+    [/\uFFFD+\s*Parking Management Systems/, `${EMOJI.car} Parking Management Systems`],
+    [/\uFFFD+\s*CRM & ERP Software/, `${EMOJI.chart} CRM & ERP Software`],
+    [/\uFFFD+\s*Mobile Applications/, `${EMOJI.phone} Mobile Applications`],
+    [/\uFFFD+\s*Custom Web Applications/, `${EMOJI.briefcase} Custom Web Applications`],
+    [/\uFFFD+\s*We'd be happy/, `${EMOJI.sparkle} We'd be happy`],
+    [/\uFFFD+\s*\{websiteLink\}/, `${EMOJI.globe} {websiteLink}`],
+  ];
+  for (const [pattern, fixed] of repairs) {
+    repaired = repaired.replace(pattern, fixed);
+  }
+
+  repaired = repaired.replace(/^[\uFFFD]+$/gm, RULE);
+
+  return repaired;
+};
+
+const TEMPLATE_PLACEHOLDERS = ["{businessName}", "{summary}", "{demoLink}", "{websiteLink}"];
 
 export const buildWhatsAppMessage = (lead, website = WEBSITE_URL) => {
   const fill = (v, fallback) => (v && String(v).trim() ? String(v).trim() : fallback);
-  return TEMPLATE.replace("{businessName}", fill(lead.businessName, "—"))
-    .replace("{summary}", fill(lead.summary, "—"))
-    .replace("{demoLink}", fill(lead.demoLink, "—"))
-    .replace("{websiteLink}", fill(lead.websiteLink, website));
+  const values = [
+    fill(lead.businessName, "\u2014"),
+    fill(lead.summary, "\u2014"),
+    fill(lead.demoLink, "\u2014"),
+    fill(lead.websiteLink, website),
+  ];
+  return TEMPLATE_PLACEHOLDERS.reduce(
+    (template, token, i) => template.split(token).join(values[i]),
+    repairCorruptedEmojis(TEMPLATE)
+  );
 };
 
 // Normalize a mobile number to international digits (91XXXXXXXXXX).

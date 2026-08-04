@@ -1,0 +1,19 @@
+# Cross-platform editor defaults. The UTF-8 charset rule below prevents
+# editors from re-saving source files in a single-byte encoding, which is the
+# root cause of corrupted emoji (U+FFFD replacement characters) in templates.
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[{*.json,*.yml,*.yaml}]
+indent_size = 2
