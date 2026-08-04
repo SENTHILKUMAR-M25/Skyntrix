@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaSearch, FaTrash, FaEye, FaArrowRight } from "react-icons/fa";
-import { adminGet, adminPut, adminDelete } from "../api";
+import { FaSearch, FaTrash, FaEye, FaArrowRight, FaWhatsapp, FaAddressBook } from "react-icons/fa";
+import { adminGet, adminPut, adminDelete, adminPost } from "../api";
 import { useToast } from "../Toast";
 import { Badge, Button, EmptyState, Field, Input, Loading, Modal, PageHeader, Select, Textarea } from "../components/Ui";
 
@@ -25,6 +25,7 @@ export default function Leads() {
   const [statusTarget, setStatusTarget] = useState(null);
   const [statusNote, setStatusNote] = useState("");
   const [savingStatus, setSavingStatus] = useState(false);
+  const [convertingId, setConvertingId] = useState(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -82,9 +83,36 @@ export default function Leads() {
     }
   };
 
+  const handleConvert = async (row) => {
+    if (!row.phone) {
+      toast.error(`Cannot convert "${row.name}": the inquiry has no phone number`);
+      return;
+    }
+    setConvertingId(row._id);
+    try {
+      const res = await adminPost(`/lead-contacts/convert/${row._id}`);
+      const data = res.data || {};
+      const id = data.lead ? data.lead._id : data._id;
+      toast.ok(data.alreadyConverted ? "Lead was already converted — opening it" : "Converted to Lead Contact");
+      navigate(`/admin/lead-contacts/${id}`);
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setConvertingId(null);
+    }
+  };
+
   return (
     <div>
-      <PageHeader title="Leads" subtitle="Inquiries submitted through the contact form" />
+      <PageHeader
+        title="Leads"
+        subtitle="Inquiries submitted through the contact form"
+        action={
+          <Button variant="secondary" onClick={() => navigate("/admin/lead-contacts")}>
+            <FaAddressBook className="h-4 w-4" /> Lead Contacts
+          </Button>
+        }
+      />
 
       <div className="card mb-4 flex flex-col gap-3 p-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
@@ -132,6 +160,9 @@ export default function Leads() {
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       <button onClick={() => navigate(`/admin/leads/${row._id}`)} className="rounded-md p-2 text-ink/50 hover:bg-primary/10 hover:text-primary" title="View details & timeline">
                         <FaEye className="h-3.5 w-3.5" />
+                      </button>
+                      <button onClick={() => handleConvert(row)} disabled={convertingId === row._id} className="rounded-md p-2 text-ink/50 hover:bg-emerald-50 hover:text-emerald-600 disabled:opacity-40" title="Convert to Lead Contact & send WhatsApp">
+                        <FaWhatsapp className="h-3.5 w-3.5" />
                       </button>
                       <button onClick={() => setDeletingId(row._id)} className="rounded-md p-2 text-ink/50 hover:bg-red-50 hover:text-red-600" title="Delete">
                         <FaTrash className="h-3.5 w-3.5" />

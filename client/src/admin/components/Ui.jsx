@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import { cn } from "../../lib/utils";
 
 export function Spinner({ className }) {
@@ -102,17 +103,17 @@ export function Field({ label, required, error, hint, children }) {
 const inputBase =
   "w-full rounded-lg border border-base bg-white px-3 py-2 text-sm text-ink placeholder:ink/30 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50 transition";
 
-export function Input(props) {
-  return <input {...props} className={cn(inputBase, props.className)} />;
-}
+export const Input = forwardRef(function Input(props, ref) {
+  return <input ref={ref} {...props} className={cn(inputBase, props.className)} />;
+});
 
-export function Textarea(props) {
-  return <textarea rows={props.rows || 4} {...props} className={cn(inputBase, props.className)} />;
-}
+export const Textarea = forwardRef(function Textarea(props, ref) {
+  return <textarea ref={ref} rows={props.rows || 4} {...props} className={cn(inputBase, props.className)} />;
+});
 
-export function Select({ options = [], placeholder, ...props }) {
+export const Select = forwardRef(function Select({ options = [], placeholder, ...props }, ref) {
   return (
-    <select {...props} className={cn(inputBase, "appearance-none", props.className)}>
+    <select ref={ref} {...props} className={cn(inputBase, "appearance-none", props.className)}>
       {placeholder !== false && <option value="">{placeholder || "Select..."}</option>}
       {options.map((o) => (
         <option key={o.value} value={o.value}>
@@ -121,7 +122,7 @@ export function Select({ options = [], placeholder, ...props }) {
       ))}
     </select>
   );
-}
+});
 
 export function Switch({ checked, onChange, label }) {
   return (

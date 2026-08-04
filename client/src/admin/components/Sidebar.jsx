@@ -1,5 +1,6 @@
-import { NavLink, useNavigate } from "react-router-dom";
-import { FaTachometerAlt, FaCogs, FaImages, FaUsers, FaComments, FaNewspaper, FaBriefcase, FaEnvelope, FaPaperPlane, FaCog, FaShieldAlt, FaSignOutAlt } from "react-icons/fa";
+import { NavLink, useNavigate, useLocation } from "react-router-dom";
+import { FaTachometerAlt, FaCogs, FaImages, FaUsers, FaComments, FaNewspaper, FaBriefcase, FaEnvelope, FaPaperPlane, FaCog, FaShieldAlt, FaSignOutAlt, FaAddressBook, FaChevronDown, FaListAlt, FaPlusCircle, FaHistory } from "react-icons/fa";
+import { useState } from "react";
 import { useAuth } from "../AuthContext";
 import { useToast } from "../Toast";
 import { cn } from "../../lib/utils";
@@ -18,10 +19,18 @@ const links = [
   { to: "/admin/admins", label: "Admins", icon: FaShieldAlt },
 ];
 
+const leadContactLinks = [
+  { to: "/admin/lead-contacts", label: "All Leads", icon: FaListAlt },
+  { to: "/admin/lead-contacts/create", label: "Create Lead", icon: FaPlusCircle },
+  { to: "/admin/lead-contacts/history", label: "Sent History", icon: FaHistory },
+];
+
 export default function Sidebar({ onNavigate }) {
   const { admin, logout } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [leadContactOpen, setLeadContactOpen] = useState(location.pathname.startsWith("/admin/lead-contacts"));
 
   const handleLogout = async () => {
     await logout();
@@ -56,6 +65,41 @@ export default function Sidebar({ onNavigate }) {
             {l.label}
           </NavLink>
         ))}
+
+        {/* Lead Contact group */}
+        <div className="mt-2">
+          <button
+            onClick={() => setLeadContactOpen((o) => !o)}
+            className={cn(
+              "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+              location.pathname.startsWith("/admin/lead-contacts") ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white"
+            )}
+          >
+            <FaAddressBook className="h-4 w-4 shrink-0" />
+            <span className="flex-1 text-left">Lead Contact</span>
+            <FaChevronDown className={cn("h-3 w-3 transition-transform", leadContactOpen && "rotate-180")} />
+          </button>
+          {leadContactOpen && (
+            <div className="mt-1 space-y-0.5 border-l border-white/10 pl-3 ml-4">
+              {leadContactLinks.map((l) => (
+                <NavLink
+                  key={l.to}
+                  to={l.to}
+                  onClick={onNavigate}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors",
+                      isActive ? "bg-primary-gradient text-white" : "text-white/55 hover:bg-white/5 hover:text-white"
+                    )
+                  }
+                >
+                  <l.icon className="h-3.5 w-3.5 shrink-0" />
+                  {l.label}
+                </NavLink>
+              ))}
+            </div>
+          )}
+        </div>
       </nav>
 
       <div className="border-t border-white/10 p-4">

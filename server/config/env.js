@@ -54,6 +54,13 @@ export const env = {
     from: process.env.MAIL_FROM || "Skyntrix Technologies <no-reply@skyntrix.com>",
   },
 
+  whatsapp: {
+    accessToken: process.env.WHATSAPP_ACCESS_TOKEN || "",
+    phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || "",
+    apiVersion: process.env.WHATSAPP_API_VERSION || "v19.0",
+    website: process.env.WHATSAPP_WEBSITE || "https://skyntrix.vercel.app/",
+  },
+
   corsOrigins: (process.env.CORS_ORIGINS || "http://localhost:5173")
     .split(",")
     .map((o) => o.trim())
