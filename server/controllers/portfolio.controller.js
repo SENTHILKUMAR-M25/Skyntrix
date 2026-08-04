@@ -93,7 +93,11 @@ export const deletePortfolio = asyncHandler(async (req, res) => {
   return ApiResponse.ok(res, "Portfolio deleted");
 });
 
-export const fetchPublicPortfolios = base.listPublic;
+export const fetchPublicPortfolios = asyncHandler(async (req, res) => {
+  const filter = { status: "published" };
+  const data = await Portfolio.find(filter).sort({ displayOrder: 1, createdAt: -1 }).lean();
+  return ApiResponse.ok(res, "Portfolio fetched", data);
+});
 export const fetchPortfolioBySlug = base.detailPublic;
 export const listPortfolios = base.list;
 export const listPortfolioDetail = base.detail;
