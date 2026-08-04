@@ -26,7 +26,7 @@ export default function TechStack() {
           </div>
         </div>
         <div className="mt-10 grid gap-4 sm:grid-cols-3 lg:grid-cols-6 text-center">
-          {["Frontend", "Backend", "Database", "Animation", "Cloud & DevOps", "Payments"].map((c) => (
+          {["Frontend", "Backend", "Database", "Animation", "Payments"].map((c) => (
             <div key={c} className="rounded-xl border border-ink/5 bg-white px-4 py-3 text-sm font-medium text-ink/60">{c}</div>
           ))}
         </div>

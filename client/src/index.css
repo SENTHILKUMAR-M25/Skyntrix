@@ -67,6 +67,13 @@
   .heading-md {
     @apply font-display font-bold text-2xl sm:text-3xl leading-tight;
   }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }
 
 [data-reveal] {

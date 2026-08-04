@@ -48,7 +48,7 @@ export default function Blog() {
           {filtered.length === 0 ? (
             <p className="py-16 text-center text-ink/50">No articles match your search.</p>
           ) : (
-            <div className="grid gap-6 md:grid-cols-3">
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {filtered.map((b, i) => (
                 <Reveal key={b.id} delay={i * 0.05}>
                   <Link to={`/blog/${b.slug}`} className="card group block h-full overflow-hidden hover:-translate-y-1 hover:shadow-soft">

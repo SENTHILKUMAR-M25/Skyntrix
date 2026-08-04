@@ -44,10 +44,10 @@ export const testimonials = [
 ];
 
 export const stats = [
-  { value: 120, suffix: "+", label: "Projects Delivered" },
-  { value: 80, suffix: "+", label: "Happy Clients" },
-  { value: 6, suffix: "+", label: "Years Experience" },
-  { value: 98, suffix: "%", label: "Client Satisfaction" }
+  { value: 4, suffix: "", label: "Dedicated Experts" },
+  { value: 8, suffix: "+", label: "Core Services" },
+  { value: 100, suffix: "%", label: "Quality Focused" },
+  { value: 24, suffix: "/7", label: "Client Support" }
 ];
 
 export const process = [
@@ -70,8 +70,7 @@ export const techStack = [
   { name: "Framer Motion", category: "Animation", icon: "motion" },
   { name: "GSAP", category: "Animation", icon: "gsap" },
   { name: "Cloudinary", category: "Media", icon: "cloud" },
-  { name: "AWS", category: "Cloud", icon: "aws" },
-  { name: "Stripe", category: "Payments", icon: "stripe" }
+  { name: "RayzorPay", category: "Payments", icon: "stripe" }
 ];
 
 export const whyChooseUs = [

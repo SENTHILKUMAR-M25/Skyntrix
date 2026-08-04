@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import { ConsultProvider } from "./components/ConsultModal";
 import { SiteDataProvider } from "./lib/SiteDataContext";
+import SplashScreen from "./components/SplashScreen";
 import ScrollToTop from "./components/ScrollToTop";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
@@ -49,7 +51,7 @@ function PublicShell() {
           </Routes>
         </main>
         <Footer />
-        <StickyWhatsApp />
+        {/* <StickyWhatsApp /> */}
         <FloatingContactWidget />
         <ExitIntentPopup />
       </ConsultProvider>
@@ -58,9 +60,14 @@ function PublicShell() {
 }
 
 export default function App() {
+  const [splashDone, setSplashDone] = useState(() =>
+    !!sessionStorage.getItem("skyntrix_splash_seen")
+  );
+
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <HelmetProvider>
+        {!splashDone && <SplashScreen onComplete={() => setSplashDone(true)} />}
         <Routes>
           <Route path="/*" element={<PublicShell />} />
           <Route path="/admin/*" element={<AdminRoutes />} />

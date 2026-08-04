@@ -24,7 +24,7 @@ export default function Pricing() {
 
       <section className="section-pad bg-base">
         <div className="container-x">
-          <div className="grid gap-6 lg:grid-cols-4 md:grid-cols-2">
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {pricing.map((p, i) => (
               <Reveal key={p.name} delay={i * 0.05}>
                 <div className={`relative flex h-full flex-col rounded-3xl p-8 ${p.featured ? "bg-primary-gradient text-white shadow-soft scale-[1.02]" : "card"}`}>

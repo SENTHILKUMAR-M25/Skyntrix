@@ -5,8 +5,9 @@ export const SITE = {
   url: "https://skyntrix.vercel.app",
   email: "skyntrixtechnologies@gmail.com",
   careersEmail: "careers@skyntrix.com",
-  phone: "+91 98765 43210",
-  whatsapp: "919876543210",
+  phone: "+91 8925393946",
+  phon2: "+91 9790586747",
+  whatsapp: "+91 9790586747",
   address: "Madurai",
   hours: "Mon - Sat: 9:00 AM - 7:00 PM IST",
   social: {

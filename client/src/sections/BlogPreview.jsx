@@ -15,7 +15,7 @@ export default function BlogPreview() {
           title="Fresh Thinking From Our Team"
           subtitle="Practical guides on SEO, design, development and growth — written by the people who build for you."
         />
-        <div className="grid gap-6 md:grid-cols-3">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {latest.map((b, i) => (
             <Reveal key={b.id} delay={i * 0.07}>
               <Link to={`/blog/${b.slug}`} className="card group block h-full overflow-hidden hover:-translate-y-1 hover:shadow-soft">
