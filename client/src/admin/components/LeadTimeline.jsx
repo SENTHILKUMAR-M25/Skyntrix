@@ -24,6 +24,22 @@ const fullTime = (date) =>
     minute: "2-digit",
   });
 
+const ACTION_LABELS = {
+  stage_change: "stage change",
+  note: "note added",
+  reminder_added: "reminder set",
+  reminder_completed: "reminder completed",
+  attachment_added: "attachment added",
+  attachment_deleted: "attachment removed",
+  quotation_created: "quotation",
+  quotation_approved: "quotation approved",
+  invoice_created: "invoice",
+  payment_recorded: "payment received",
+  lead_updated: "details updated",
+};
+
+const actionLabel = (action) => ACTION_LABELS[action] || "activity";
+
 function Avatar({ entry }) {
   if (entry.createdByAvatar) {
     return (
@@ -89,9 +105,12 @@ export default function LeadTimeline({ entries, canEdit, canDelete, onEdit, onDe
                             </>
                           )}
                           <span className="text-[11px] font-medium uppercase tracking-wide text-ink/40">
-                            {isNoteOnly ? "note added" : "status change"}
+                            {actionLabel(entry.action)}
                           </span>
                         </div>
+                        {entry.title && entry.title !== entry.note && (
+                          <p className="mt-1.5 text-sm font-medium text-ink/70">{entry.title}</p>
+                        )}
                       </div>
 
                       {(editable || deletable) && (

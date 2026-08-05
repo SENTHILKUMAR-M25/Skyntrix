@@ -22,6 +22,7 @@ const servicesRule = (field = "services") =>
     .withMessage("Each service needs a name (max 200 characters)");
 
 const commonFields = [
+  body("leadId").optional({ values: "falsy" }).isMongoId().withMessage("Invalid lead id"),
   body("clientName")
     .trim()
     .notEmpty()
@@ -78,6 +79,11 @@ export const sendQuotationValidation = [
 ];
 
 export const quotationIdParam = [param("id").isMongoId().withMessage("Invalid quotation id")];
+
+export const approveQuotationValidation = [
+  ...quotationIdParam,
+  body("note").optional({ values: "falsy" }).isString().isLength({ max: 1000 }).withMessage("Note must be 1000 characters or fewer"),
+];
 
 export const listQuotationsValidation = [
   query("page").optional().isInt({ min: 1 }).withMessage("Page must be a positive integer"),

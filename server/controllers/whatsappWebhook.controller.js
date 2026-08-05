@@ -4,12 +4,15 @@ import logger from "../utils/logger.js";
 import { env } from "../config/env.js";
 import Quotation from "../models/Quotation.model.js";
 import QuotationSendLog from "../models/QuotationSendLog.model.js";
+import Invoice from "../models/Invoice.model.js";
+import InvoiceSendLog from "../models/InvoiceSendLog.model.js";
 import {
   normalizeMobileNumber,
   markConversationInbound,
   markConversationOutbound,
 } from "../services/whatsapp.service.js";
-import { sendQuotationFollowUp, buildQuotationMessage } from "../services/quotation.service.js";
+import { sendQuotationFollowUp, buildQuotationMessage, ensureQuotationPdf } from "../services/quotation.service.js";
+import { sendInvoiceFollowUp, buildInvoiceMessage, ensureInvoicePdf } from "../services/invoice.service.js";
 
 const DELIVERY_RANK = { pending: 0, sent: 1, delivered: 2, read: 3 };
 
@@ -95,7 +98,30 @@ const applyMessageStatus = async (status) => {
   const log = await QuotationSendLog.findOne({
     $or: [{ providerMessageId: id }, { documentMessageId: id }, { templateMessageId: id }],
   });
-  if (!log) {
+  if (log) {
+    if (next === "failed") {
+      const detail = status?.errors?.[0]?.message || status?.errors?.[0]?.error_data?.details || "Delivery failed";
+      logger.error(`[WhatsApp] message ${id} failed: ${detail}`);
+      await QuotationSendLog.updateOne({ _id: log._id }, { $set: { deliveryStatus: "failed", error: detail } });
+      if (log.messageType === "template" && log.awaitingReply) {
+        await Quotation.updateOne({ _id: log.quotationId }, { $set: { whatsappStatus: "failed", status: "failed" } });
+      }
+      return;
+    }
+
+    const currentRank = DELIVERY_RANK[log.deliveryStatus] ?? 0;
+    const nextRank = DELIVERY_RANK[next] ?? 0;
+    if (nextRank > currentRank) {
+      await QuotationSendLog.updateOne({ _id: log._id }, { $set: { deliveryStatus: next } });
+      logger.info(`[WhatsApp] message ${id} -> ${next}`);
+    }
+    return;
+  }
+
+  const invoiceLog = await InvoiceSendLog.findOne({
+    $or: [{ providerMessageId: id }, { documentMessageId: id }, { templateMessageId: id }],
+  });
+  if (!invoiceLog) {
     logger.info(`[WhatsApp] status for unknown message ${id} (${next}) ignored`);
     return;
   }
@@ -103,31 +129,44 @@ const applyMessageStatus = async (status) => {
   if (next === "failed") {
     const detail = status?.errors?.[0]?.message || status?.errors?.[0]?.error_data?.details || "Delivery failed";
     logger.error(`[WhatsApp] message ${id} failed: ${detail}`);
-    await QuotationSendLog.updateOne({ _id: log._id }, { $set: { deliveryStatus: "failed", error: detail } });
-    if (log.messageType === "template" && log.awaitingReply) {
-      await Quotation.updateOne({ _id: log.quotationId }, { $set: { whatsappStatus: "failed", status: "failed" } });
-    }
+    await InvoiceSendLog.updateOne({ _id: invoiceLog._id }, { $set: { deliveryStatus: "failed", error: detail } });
     return;
   }
 
-  const currentRank = DELIVERY_RANK[log.deliveryStatus] ?? 0;
+  const currentRank = DELIVERY_RANK[invoiceLog.deliveryStatus] ?? 0;
   const nextRank = DELIVERY_RANK[next] ?? 0;
   if (nextRank > currentRank) {
-    await QuotationSendLog.updateOne({ _id: log._id }, { $set: { deliveryStatus: next } });
+    await InvoiceSendLog.updateOne({ _id: invoiceLog._id }, { $set: { deliveryStatus: next } });
     logger.info(`[WhatsApp] message ${id} -> ${next}`);
   }
 };
 
 /**
  * A customer's inbound message: record the (re)opened 24h session, then - if
- * this number has a quotation waiting for a reply - automatically send the
- * personalized message + PDF document follow-up.
+ * this number has a quotation or invoice waiting for a reply - automatically
+ * send the personalized message + PDF document follow-up.
  */
 const handleInboundMessage = async (message, value) => {
   const digits = normalizeMobileNumber(message?.from);
   if (!digits) return;
 
   await markConversationInbound(digits, message.id);
+
+  // Invoices first: an invoice template waiting for a reply is the newest
+  // promise to the client, so its follow-up takes priority.
+  const pendingInvoice = await InvoiceSendLog.findOneAndUpdate(
+    { mobileNumber: digits, awaitingReply: true },
+    { $set: { awaitingReply: false } },
+    { sort: { createdAt: -1 }, new: true }
+  );
+  if (pendingInvoice) {
+    const invoice = await Invoice.findById(pendingInvoice.invoiceId);
+    if (!invoice) return;
+    await ensureInvoicePdf(invoice);
+    const result = await sendInvoiceFollowUp(invoice);
+    await persistInvoiceWebhookFollowUp({ invoice, digits, result });
+    return;
+  }
 
   // Atomically claim the newest awaiting-reply log so concurrent inbound
   // events cannot trigger duplicate follow-ups.
@@ -137,15 +176,50 @@ const handleInboundMessage = async (message, value) => {
     { sort: { createdAt: -1 }, new: true }
   );
   if (!pending) {
-    logger.info(`[WhatsApp] inbound from ${digits} - no quotation waiting for reply`);
+    logger.info(`[WhatsApp] inbound from ${digits} - nothing waiting for reply`);
     return;
   }
 
   const quotation = await Quotation.findById(pending.quotationId);
   if (!quotation) return;
 
+  // The client may have updated the quotation while the follow-up was pending,
+  // so make sure the latest PDF exists before sending it.
+  await ensureQuotationPdf(quotation);
+
   const result = await sendQuotationFollowUp(quotation);
   await persistWebhookFollowUp({ quotation, digits, result });
+};
+
+/** Persist the automated invoice follow-up (text + PDF) sent after a customer reply. */
+const persistInvoiceWebhookFollowUp = async ({ invoice, digits, result }) => {
+  const ok = result.status === "success";
+  if (ok && !invoice.sentAt) invoice.sentAt = new Date();
+  if (ok && invoice.status === "draft") invoice.status = "sent";
+  await invoice.save();
+
+  await InvoiceSendLog.create({
+    invoiceId: invoice._id,
+    invoiceNumber: invoice.invoiceNumber,
+    clientName: invoice.clientName,
+    mobileNumber: invoice.mobile,
+    channel: "whatsapp",
+    message: buildInvoiceMessage(invoice, { includePdfLink: false }),
+    status: ok ? "success" : "failed",
+    messageType: "document",
+    awaitingReply: false,
+    deliveryStatus: ok ? "sent" : "failed",
+    sentAt: ok ? new Date() : null,
+    pdfUrl: invoice.pdfUrl || "",
+    providerMessageId: result.textMessageId || "",
+    documentMessageId: result.documentMessageId || "",
+    error: ok ? "" : result.error || "Follow-up send failed",
+    sentBy: null,
+    sentByName: "System (auto)",
+  });
+
+  if (result.textMessageId) await markConversationOutbound(digits, result.textMessageId);
+  logger.info(`[WhatsApp] invoice follow-up for ${invoice.invoiceNumber} -> ${result.status}`);
 };
 
 /** Persist the automated follow-up (text + PDF) sent after a customer reply. */

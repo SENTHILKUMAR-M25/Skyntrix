@@ -72,6 +72,8 @@ export const env = {
     // {{1}} client name, {{2}} quotation no, {{3}} project, {{4}} total amount.
     quotationTemplateName: process.env.WHATSAPP_QUOTATION_TEMPLATE_NAME || "skyntrix_quotation",
     quotationTemplateLang: process.env.WHATSAPP_QUOTATION_TEMPLATE_LANG || "en",
+    invoiceTemplateName: process.env.WHATSAPP_INVOICE_TEMPLATE_NAME || "skyntrix_invoice",
+    invoiceTemplateLang: process.env.WHATSAPP_INVOICE_TEMPLATE_LANG || "en",
   },
 
   corsOrigins: (process.env.CORS_ORIGINS || "http://localhost:5173")

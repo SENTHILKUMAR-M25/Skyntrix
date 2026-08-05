@@ -20,8 +20,9 @@ const isConfigured = () => !!(env.smtp.host && env.smtp.user);
 
 /**
  * Send an email. Returns false without throwing when SMTP is not configured (dev).
+ * `attachments` (optional) is passed straight to nodemailer.
  */
-export const sendMail = async ({ to, subject, html, text, from }) => {
+export const sendMail = async ({ to, subject, html, text, from, attachments }) => {
   if (env.nodeEnv !== "production" && !isConfigured()) {
     logger.info(`[MAIL SIMULATED] to=${to} subject="${subject}"`);
     return { simulated: true };
@@ -38,6 +39,7 @@ export const sendMail = async ({ to, subject, html, text, from }) => {
     subject,
     html,
     text,
+    attachments,
   });
 
   logger.info(`Email sent to ${to} (msgId: ${info.messageId})`);

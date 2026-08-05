@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useForm, useFieldArray } from "react-hook-form";
 import { FaArrowLeft, FaSave, FaWhatsapp, FaUndoAlt, FaPlus, FaTrash } from "react-icons/fa";
 import { adminGet, adminPost, adminPut } from "../../api";
@@ -32,6 +32,8 @@ const DEFAULT_VALUES = {
 export default function CreateQuotation() {
   const { id } = useParams();
   const isEdit = Boolean(id);
+  const [searchParams] = useSearchParams();
+  const leadId = searchParams.get("leadId") || "";
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -42,7 +44,7 @@ export default function CreateQuotation() {
 
   const { fields, append, remove } = useFieldArray({ control, name: "services" });
 
-  const [loading, setLoading] = useState(isEdit);
+  const [loading, setLoading] = useState(isEdit || Boolean(leadId));
   const [preview, setPreview] = useState(false);
   const [pendingPayload, setPendingPayload] = useState(null);
   const [sending, setSending] = useState(false);
@@ -51,6 +53,30 @@ export default function CreateQuotation() {
   const watched = watch();
   const totalFromItems = quoteServicesTotal(services);
   const showTotalField = services.length === 0 || services.every((s) => !String(s.amount || "").trim());
+
+  // Prefill from a lead when launched from the pipeline profile.
+  useEffect(() => {
+    if (!leadId || isEdit) return;
+    (async () => {
+      try {
+        const res = await adminGet(`/leads/admin/${leadId}`);
+        const d = res.data || {};
+        reset((current) => ({
+          ...current,
+          clientName: d.name || "",
+          businessName: d.company || "",
+          mobile: d.phone ? (normalizeMobileNumber(d.phone)?.slice(2) || d.phone) : "",
+          email: d.email || "",
+          projectName: d.service ? `${d.service} project` : "",
+        }));
+        toast.info("Lead details pre-filled");
+      } catch (e) {
+        toast.error(e.message);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [leadId, isEdit, reset, toast]);
 
   // Load existing quotation in edit mode.
   useEffect(() => {
@@ -93,6 +119,7 @@ export default function CreateQuotation() {
   );
 
   const buildPayload = (values) => ({
+    leadId: leadId || undefined,
     clientName: values.clientName.trim(),
     businessName: values.businessName.trim() || undefined,
     mobile: normalizeMobileNumber(values.mobile) || values.mobile,

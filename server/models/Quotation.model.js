@@ -15,6 +15,7 @@ const serviceItemSchema = new mongoose.Schema(
 const quotationSchema = new mongoose.Schema(
   {
     quotationNumber: { type: String, required: true, unique: true, trim: true, uppercase: true },
+    leadId: { type: mongoose.Schema.Types.ObjectId, ref: "Lead", default: null },
     clientName: { type: String, required: true, trim: true },
     businessName: { type: String, trim: true, default: "" },
     mobile: { type: String, required: true, trim: true },
@@ -34,12 +35,17 @@ const quotationSchema = new mongoose.Schema(
     whatsappStatus: { type: String, enum: WHATSAPP_STATUS, default: "pending" },
     status: { type: String, enum: QUOTATION_STATUS, default: "draft" },
     sentAt: { type: Date, default: null },
+    approved: { type: Boolean, default: false },
+    approvedAt: { type: Date, default: null },
 
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "Admin", default: null },
     createdByName: { type: String, default: "System" },
   },
   { timestamps: true }
 );
+
+quotationSchema.index({ leadId: 1, createdAt: -1 });
+quotationSchema.index({ approved: 1, createdAt: -1 });
 
 quotationSchema.index({ clientName: "text", businessName: "text", email: "text", mobile: "text", projectName: "text", quotationNumber: "text" });
 quotationSchema.index({ status: 1, createdAt: -1 });

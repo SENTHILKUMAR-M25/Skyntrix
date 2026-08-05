@@ -23,6 +23,7 @@ import BlogPost from "./pages/BlogPost";
 import Careers from "./pages/Careers";
 import Contact from "./pages/Contact";
 import NotFound from "./pages/NotFound";
+import InvoiceView from "./pages/InvoiceView";
 
 import AdminRoutes from "./admin/AdminRoutes";
 
@@ -69,6 +70,7 @@ export default function App() {
       <HelmetProvider>
         {!splashDone && <SplashScreen onComplete={() => setSplashDone(true)} />}
         <Routes>
+          <Route path="/invoice/:id" element={<InvoiceView />} />
           <Route path="/*" element={<PublicShell />} />
           <Route path="/admin/*" element={<AdminRoutes />} />
         </Routes>

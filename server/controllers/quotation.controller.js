@@ -2,6 +2,7 @@ import fs from "fs";
 import mongoose from "mongoose";
 import Quotation from "../models/Quotation.model.js";
 import QuotationSendLog from "../models/QuotationSendLog.model.js";
+import Lead from "../models/Lead.model.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import ApiResponse from "../utils/response.js";
 import ApiError from "../utils/ApiError.js";
@@ -11,14 +12,17 @@ import logger from "../utils/logger.js";
 import { normalizeMobileNumber } from "../services/whatsapp.service.js";
 import {
   generateQuotationNumber,
-  generateQuotationPdf,
+  ensureQuotationPdf,
   sendQuotationWhatsApp,
   deleteQuotationPdf,
   buildQuotationMessage,
 } from "../services/quotation.service.js";
 import { invalidateChartsCache } from "./dashboard.controller.js";
+import { moveLeadStage } from "../services/pipeline.service.js";
+import { refreshProjectPaymentState } from "../services/invoice.service.js";
 
 const QUOTATION_KEYS = [
+  "leadId",
   "clientName",
   "businessName",
   "mobile",
@@ -37,6 +41,12 @@ const QUOTATION_KEYS = [
 const ACTOR = (req) => ({
   createdBy: req.admin?._id || null,
   createdByName: req.admin?.name || "System",
+});
+
+const PIPELINE_ACTOR = (req) => ({
+  createdBy: req.admin?._id || null,
+  createdByName: req.admin?.name || "System",
+  createdByAvatar: req.admin?.avatar || "",
 });
 
 const pick = (obj, keys) => {
@@ -90,6 +100,26 @@ const sendResultMessage = (result) =>
           ? `Quotation send failed: ${result.error}`
           : "Quotation send failed";
 
+/** Keep the lead's pipeline in sync whenever a quotation moves along. */
+const syncLeadOnQuotation = async ({ quotation, req, action, title, note }) => {
+  if (!quotation?.leadId) return;
+  try {
+    const lead = await Lead.findById(quotation.leadId);
+    if (!lead) return;
+    await moveLeadStage({
+      lead,
+      newStage: "quotation_sent",
+      actor: PIPELINE_ACTOR(req),
+      action,
+      title,
+      note,
+      forwardOnly: true,
+    });
+  } catch (err) {
+    logger.warn(`[Quotation] pipeline sync failed for ${quotation.quotationNumber}: ${err.message}`);
+  }
+};
+
 const persistSendResult = async ({ quotation, req, result, isRetry = false }) => {
   const ok = result.status === "success" || result.status === "fallback" || result.status === "template";
   quotation.status = ok ? "sent" : "failed";
@@ -125,13 +155,7 @@ const persistSendResult = async ({ quotation, req, result, isRetry = false }) =>
 };
 
 /** Rebuild the PDF file from the quotation's current state. */
-const regeneratePdf = async (quotation) => {
-  const pdf = await generateQuotationPdf(quotation);
-  quotation.pdfUrl = pdf.url;
-  quotation.pdfPath = pdf.path;
-  await quotation.save();
-  return quotation;
-};
+const regeneratePdf = async (quotation) => ensureQuotationPdf(quotation, { force: true });
 
 // ============================================================
 // CRUD
@@ -145,6 +169,13 @@ export const createQuotation = asyncHandler(async (req, res) => {
   Object.assign(payload, ACTOR(req));
 
   const doc = await Quotation.create(payload);
+  await syncLeadOnQuotation({
+    quotation: doc,
+    req,
+    action: "quotation_created",
+    title: `Quotation ${doc.quotationNumber} created`,
+    note: `Quotation ${doc.quotationNumber} prepared for ${doc.projectName || doc.clientName}`,
+  });
   auditLog(req, "create", "Quotation", doc._id, `Created quotation ${doc.quotationNumber}`);
   invalidateChartsCache();
   return ApiResponse.created(res, "Quotation draft saved", doc);
@@ -209,8 +240,9 @@ export const updateQuotation = asyncHandler(async (req, res) => {
   Object.assign(doc, updates);
   await doc.save();
 
-  // Keep the stored PDF in sync with the latest quotation data.
-  if (doc.pdfPath && changed.length) {
+  // Keep the stored PDF in sync with the latest quotation data so downloads,
+  // previews and resends always reflect the current values.
+  if (changed.length) {
     try {
       await regeneratePdf(doc);
     } catch (err) {
@@ -231,6 +263,56 @@ export const deleteQuotation = asyncHandler(async (req, res) => {
   auditLog(req, "delete", "Quotation", doc._id, `Deleted quotation ${doc.quotationNumber}`);
   invalidateChartsCache();
   return ApiResponse.ok(res, "Quotation deleted");
+});
+
+// ============================================================
+// Approve
+// ============================================================
+
+/**
+ * POST /quotations/:id/approve
+ * Marks a quotation as approved by the client and advances the linked lead
+ * (if any) to the "Approved" pipeline stage.
+ */
+export const approveQuotation = asyncHandler(async (req, res) => {
+  const doc = await Quotation.findById(req.params.id);
+  if (!doc) throw ApiError.notFound("Quotation not found");
+  if (doc.approved) throw ApiError.badRequest("Quotation is already approved");
+
+  doc.approved = true;
+  doc.approvedAt = new Date();
+  await doc.save();
+
+  if (doc.leadId) {
+    try {
+      const lead = await Lead.findById(doc.leadId);
+      if (lead) {
+        await moveLeadStage({
+          lead,
+          newStage: "approved",
+          actor: PIPELINE_ACTOR(req),
+          action: "quotation_approved",
+          title: `Quotation ${doc.quotationNumber} approved`,
+          note: (req.body.note || "").trim() || "Client approved the quotation",
+          forwardOnly: true,
+        });
+      }
+    } catch (err) {
+      logger.warn(`[Quotation] pipeline sync on approve failed for ${doc.quotationNumber}: ${err.message}`);
+    }
+  }
+
+  // Publish the approved quotation's total as the project reference so every
+  // future invoice tracks cumulative payments against it.
+  try {
+    await refreshProjectPaymentState({ quotationId: doc._id });
+  } catch (err) {
+    logger.warn(`[Quotation] project payment sync on approve failed for ${doc.quotationNumber}: ${err.message}`);
+  }
+
+  auditLog(req, "update", "Quotation", doc._id, `Quotation ${doc.quotationNumber} approved`);
+  invalidateChartsCache();
+  return ApiResponse.ok(res, "Quotation approved", doc);
 });
 
 // ============================================================
@@ -271,6 +353,13 @@ export const sendQuotation = asyncHandler(async (req, res) => {
     result = { status: "failed", error: err.message || "PDF generation or WhatsApp send failed" };
   }
   await persistSendResult({ quotation, req, result });
+  await syncLeadOnQuotation({
+    quotation,
+    req,
+    action: "quotation_created",
+    title: `Quotation ${quotation.quotationNumber} sent`,
+    note: `Quotation ${quotation.quotationNumber} sent to ${quotation.clientName}`,
+  });
 
   return ApiResponse.ok(res, sendResultMessage(result), {
     quotation: quotation.toObject(),
@@ -299,6 +388,13 @@ export const resendQuotation = asyncHandler(async (req, res) => {
     result = { status: "failed", error: err.message || "PDF generation or WhatsApp send failed" };
   }
   await persistSendResult({ quotation, req, result, isRetry: true });
+  await syncLeadOnQuotation({
+    quotation,
+    req,
+    action: "quotation_created",
+    title: `Quotation ${quotation.quotationNumber} resent`,
+    note: `Quotation ${quotation.quotationNumber} resent to ${quotation.clientName}`,
+  });
 
   return ApiResponse.ok(res, sendResultMessage(result), {
     quotation: quotation.toObject(),
@@ -318,13 +414,13 @@ export const downloadQuotation = asyncHandler(async (req, res) => {
   const quotation = await Quotation.findById(req.params.id);
   if (!quotation) throw ApiError.notFound("Quotation not found");
 
-  if (!quotation.pdfPath || !fs.existsSync(quotation.pdfPath)) {
-    await regeneratePdf(quotation);
-  }
+  await ensureQuotationPdf(quotation);
 
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="${quotation.quotationNumber}.pdf"`);
-  res.setHeader("Cache-Control", "private, max-age=60");
+  // Never cache: the PDF is regenerated on every update under the same URL, so a
+  // cached copy would show stale quotation data.
+  res.setHeader("Cache-Control", "no-store");
   fs.createReadStream(quotation.pdfPath).pipe(res);
 });
 

@@ -38,6 +38,20 @@ const STATUS_COLORS = {
   contacted: "bg-indigo-100 text-indigo-700 border-indigo-200",
   converted: "bg-emerald-100 text-emerald-700 border-emerald-200",
   closed: "bg-slate-100 text-slate-600 border-slate-200",
+  meeting_scheduled: "bg-violet-100 text-violet-700 border-violet-200",
+  requirement_collected: "bg-cyan-100 text-cyan-700 border-cyan-200",
+  quotation_sent: "bg-amber-100 text-amber-700 border-amber-200",
+  follow_up: "bg-orange-100 text-orange-700 border-orange-200",
+  approved: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  advance_received: "bg-green-100 text-green-700 border-green-200",
+  agreement_signed: "bg-teal-100 text-teal-700 border-teal-200",
+  project_started: "bg-cyan-100 text-cyan-700 border-cyan-200",
+  design_approval: "bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200",
+  development: "bg-purple-100 text-purple-700 border-purple-200",
+  testing: "bg-pink-100 text-pink-700 border-pink-200",
+  final_payment: "bg-yellow-100 text-yellow-700 border-yellow-200",
+  delivered: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  support: "bg-slate-100 text-slate-600 border-slate-200",
   reviewed: "bg-teal-100 text-teal-700 border-teal-200",
   interviewed: "bg-purple-100 text-purple-700 border-purple-200",
   rejected: "bg-red-100 text-red-700 border-red-200",
@@ -49,9 +63,10 @@ const STATUS_COLORS = {
 export function Badge({ value }) {
   const key = String(value || "draft").toLowerCase();
   const cls = STATUS_COLORS[key] || "bg-slate-100 text-slate-600 border-slate-200";
+  const label = key.replace(/_/g, " ");
   return (
     <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border capitalize", cls)}>
-      {String(value || "—")}
+      {label}
     </span>
   );
 }

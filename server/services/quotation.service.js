@@ -435,46 +435,76 @@ export const generateQuotationPdf = async (quotation) => {
   const filePath = path.join(QUOTES_DIR, filename);
   const fileUrl = `${String(env.uploadUrl).replace(/\/+$/, "")}/uploads/quotes/${filename}`;
 
-  await new Promise((resolve, reject) => {
-    // bufferPages keeps every page buffered until doc.end() so the footer can
-    // be redrawn on all pages with the correct "Page X of Y" numbering.
-    const doc = new PDFDocument({ size: "A4", margin: { top: 40, left: MARGIN, right: MARGIN, bottom: 90 }, bufferPages: true });
-    const stream = fs.createWriteStream(filePath);
+  // Write to a temp file in the same directory, then atomically rename it over
+  // the target. A PDF viewer holding the old file open (Windows) can never
+  // observe a truncated or partially-written PDF, and a failed regeneration
+  // leaves the previously generated file untouched instead of corrupting it.
+  const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    await new Promise((resolve, reject) => {
+      // bufferPages keeps every page buffered until doc.end() so the footer can
+      // be redrawn on all pages with the correct "Page X of Y" numbering.
+      const doc = new PDFDocument({ size: "A4", margin: { top: 40, left: MARGIN, right: MARGIN, bottom: 90 }, bufferPages: true });
+      const stream = fs.createWriteStream(tmpPath);
 
-    stream.on("finish", resolve);
-    stream.on("error", reject);
-    doc.on("error", reject);
+      stream.on("finish", resolve);
+      stream.on("error", reject);
+      doc.on("error", reject);
 
-    doc.pipe(stream);
-    drawHeader(doc, quotation);
-    doc.y = 148;
+      doc.pipe(stream);
+      drawHeader(doc, quotation);
+      doc.y = 148;
 
-    drawInfoCard(doc, quotation);
-    drawScope(doc, quotation);
-    drawCostTable(doc, quotation);
-    drawPaymentBoxes(doc, quotation);
+      drawInfoCard(doc, quotation);
+      drawScope(doc, quotation);
+      drawCostTable(doc, quotation);
+      drawPaymentBoxes(doc, quotation);
 
-    // Keep Terms & Conditions + Signature together on one page: only move them
-    // to the next page when they genuinely do not fit the remaining space.
-    ensureSpace(doc, computeTermsHeight(doc, quotation) + SIGNATURE_HEIGHT);
-    drawTerms(doc, quotation);
-    drawSignature(doc);
+      // Keep Terms & Conditions + Signature together on one page: only move them
+      // to the next page when they genuinely do not fit the remaining space.
+      ensureSpace(doc, computeTermsHeight(doc, quotation) + SIGNATURE_HEIGHT);
+      drawTerms(doc, quotation);
+      drawSignature(doc);
 
-    // Footers are drawn after all content is laid out so the total page count
-    // is known and "Page X of Y" can be rendered on every page. The footer is
-    // always positioned at the bottom via fixed coordinates.
-    const { count: totalPages } = doc.bufferedPageRange();
-    for (let i = 0; i < totalPages; i += 1) {
-      doc.switchToPage(i);
-      drawFooter(doc, i + 1, totalPages);
-    }
-    doc.switchToPage(totalPages - 1);
+      // Footers are drawn after all content is laid out so the total page count
+      // is known and "Page X of Y" can be rendered on every page. The footer is
+      // always positioned at the bottom via fixed coordinates.
+      const { count: totalPages } = doc.bufferedPageRange();
+      for (let i = 0; i < totalPages; i += 1) {
+        doc.switchToPage(i);
+        drawFooter(doc, i + 1, totalPages);
+      }
+      doc.switchToPage(totalPages - 1);
 
-    doc.end();
-  });
+      doc.end();
+    });
+
+    fs.renameSync(tmpPath, filePath);
+  } catch (err) {
+    try {
+      if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
+    } catch (_) {}
+    throw err;
+  }
 
   logger.info(`[Quotation] PDF generated: ${filePath}`);
   return { path: filePath, url: fileUrl, filename };
+};
+
+/**
+ * Make sure a current PDF exists for the quotation, optionally forcing a
+ * regeneration from the latest data. Persists the refreshed pdfUrl/pdfPath so
+ * downloads, previews and WhatsApp sends always reflect the current state.
+ */
+export const ensureQuotationPdf = async (quotation, { force = false } = {}) => {
+  if (!force && quotation.pdfPath && fs.existsSync(quotation.pdfPath)) {
+    return quotation;
+  }
+  const pdf = await generateQuotationPdf(quotation);
+  quotation.pdfUrl = pdf.url;
+  quotation.pdfPath = pdf.path;
+  await quotation.save();
+  return quotation;
 };
 
 /** Remove the quotation PDF file from disk (best effort). */

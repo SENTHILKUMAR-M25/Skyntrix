@@ -1,5 +1,5 @@
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
-import { FaTachometerAlt, FaCogs, FaImages, FaUsers, FaComments, FaNewspaper, FaBriefcase, FaEnvelope, FaPaperPlane, FaCog, FaShieldAlt, FaSignOutAlt, FaAddressBook, FaChevronDown, FaListAlt, FaPlusCircle, FaHistory } from "react-icons/fa";
+import { FaTachometerAlt, FaCogs, FaImages, FaUsers, FaComments, FaNewspaper, FaBriefcase, FaEnvelope, FaPaperPlane, FaCog, FaShieldAlt, FaSignOutAlt, FaAddressBook, FaChevronDown, FaListAlt, FaPlusCircle, FaHistory, FaColumns } from "react-icons/fa";
 import { FaFileInvoiceDollar, FaFileCirclePlus, FaFileLines } from "react-icons/fa6";
 import { useState } from "react";
 import { useAuth } from "../AuthContext";
@@ -14,6 +14,7 @@ const links = [
   { to: "/admin/testimonials", label: "Testimonials", icon: FaComments },
   { to: "/admin/blog", label: "Blog Posts", icon: FaNewspaper },
   { to: "/admin/leads", label: "Leads", icon: FaEnvelope },
+  { to: "/admin/pipeline", label: "Pipeline", icon: FaColumns },
   { to: "/admin/careers", label: "Applications", icon: FaBriefcase },
   { to: "/admin/newsletter", label: "Newsletter", icon: FaPaperPlane },
   { to: "/admin/settings", label: "Settings", icon: FaCog },
@@ -31,6 +32,11 @@ const quotationLinks = [
   { to: "/admin/quotations/create", label: "Create Quotation", icon: FaFileCirclePlus },
 ];
 
+const invoiceLinks = [
+  { to: "/admin/invoices", label: "All Invoices", icon: FaFileLines },
+  { to: "/admin/invoices/create", label: "Create Invoice", icon: FaFileCirclePlus },
+];
+
 export default function Sidebar({ onNavigate }) {
   const { admin, logout } = useAuth();
   const { toast } = useToast();
@@ -38,6 +44,7 @@ export default function Sidebar({ onNavigate }) {
   const location = useLocation();
   const [leadContactOpen, setLeadContactOpen] = useState(location.pathname.startsWith("/admin/lead-contacts"));
   const [quotationOpen, setQuotationOpen] = useState(location.pathname.startsWith("/admin/quotations"));
+  const [invoiceOpen, setInvoiceOpen] = useState(location.pathname.startsWith("/admin/invoices"));
 
   const handleLogout = async () => {
     await logout();
@@ -124,6 +131,41 @@ export default function Sidebar({ onNavigate }) {
           {quotationOpen && (
             <div className="mt-1 space-y-0.5 border-l border-white/10 pl-3 ml-4">
               {quotationLinks.map((l) => (
+                <NavLink
+                  key={l.to}
+                  to={l.to}
+                  onClick={onNavigate}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors",
+                      isActive ? "bg-primary-gradient text-white" : "text-white/55 hover:bg-white/5 hover:text-white"
+                    )
+                  }
+                >
+                  <l.icon className="h-3.5 w-3.5 shrink-0" />
+                  {l.label}
+                </NavLink>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Invoices group */}
+        <div className="mt-2">
+          <button
+            onClick={() => setInvoiceOpen((o) => !o)}
+            className={cn(
+              "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+              location.pathname.startsWith("/admin/invoices") ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white"
+            )}
+          >
+            <FaFileInvoiceDollar className="h-4 w-4 shrink-0" />
+            <span className="flex-1 text-left">Invoices</span>
+            <FaChevronDown className={cn("h-3 w-3 transition-transform", invoiceOpen && "rotate-180")} />
+          </button>
+          {invoiceOpen && (
+            <div className="mt-1 space-y-0.5 border-l border-white/10 pl-3 ml-4">
+              {invoiceLinks.map((l) => (
                 <NavLink
                   key={l.to}
                   to={l.to}

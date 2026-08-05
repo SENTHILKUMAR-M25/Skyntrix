@@ -84,7 +84,7 @@ export default function QuotationPreviewModal({ open, onClose, quotation, sendin
             <span className="font-semibold">{"📄 Quotation - "}{quotation.quotationNumber || ""}.pdf</span>
             followed by the message above.
             {quotation.pdfUrl && (
-              <a href={quotation.pdfUrl} target="_blank" rel="noreferrer" className="ml-1 break-all font-medium text-primary hover:underline">(preview)</a>
+              <a href={`${quotation.pdfUrl}?v=${encodeURIComponent(quotation.updatedAt || Date.now())}`} target="_blank" rel="noreferrer" className="ml-1 break-all font-medium text-primary hover:underline">(preview)</a>
             )}
           </span>
         </div>

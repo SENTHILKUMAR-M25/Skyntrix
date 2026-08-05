@@ -12,6 +12,7 @@ import Testimonials from "./pages/Testimonials";
 import Blog from "./pages/Blog";
 import Leads from "./pages/Leads";
 import LeadDetail from "./pages/LeadDetail";
+import Pipeline from "./pages/Pipeline";
 import AllLeadContacts from "./pages/lead-contacts/AllLeads";
 import CreateLeadContact from "./pages/lead-contacts/CreateLead";
 import SentHistory from "./pages/lead-contacts/SentHistory";
@@ -19,6 +20,9 @@ import LeadContactDetail from "./pages/lead-contacts/LeadContactDetail";
 import Quotations from "./pages/quotations/Quotations";
 import CreateQuotation from "./pages/quotations/CreateQuotation";
 import QuotationDetail from "./pages/quotations/QuotationDetail";
+import Invoices from "./pages/invoices/Invoices";
+import CreateInvoice from "./pages/invoices/CreateInvoice";
+import InvoiceDetail from "./pages/invoices/InvoiceDetail";
 import Careers from "./pages/Careers";
 import Newsletter from "./pages/Newsletter";
 import Settings from "./pages/Settings";
@@ -41,6 +45,7 @@ export default function AdminRoutes() {
               <Route path="blog" element={<Blog />} />
               <Route path="leads" element={<Leads />} />
               <Route path="leads/:id" element={<LeadDetail />} />
+              <Route path="pipeline" element={<Pipeline />} />
               <Route path="lead-contacts" element={<AllLeadContacts />} />
               <Route path="lead-contacts/create" element={<CreateLeadContact />} />
               <Route path="lead-contacts/history" element={<SentHistory />} />
@@ -50,6 +55,10 @@ export default function AdminRoutes() {
               <Route path="quotations/create" element={<CreateQuotation />} />
               <Route path="quotations/:id" element={<QuotationDetail />} />
               <Route path="quotations/:id/edit" element={<CreateQuotation />} />
+              <Route path="invoices" element={<Invoices />} />
+              <Route path="invoices/create" element={<CreateInvoice />} />
+              <Route path="invoices/:id" element={<InvoiceDetail />} />
+              <Route path="invoices/:id/edit" element={<CreateInvoice />} />
               <Route path="careers" element={<Careers />} />
               <Route path="newsletter" element={<Newsletter />} />
               <Route path="settings" element={<Settings />} />

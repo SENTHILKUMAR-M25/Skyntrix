@@ -203,7 +203,7 @@ export default function QuotationDetail() {
             <div className="card p-5">
               <h2 className="mb-3 font-display text-sm font-bold uppercase tracking-wide text-ink/60">PDF</h2>
               <div className="flex items-center justify-between gap-2 rounded-xl bg-base/80 px-3 py-2 text-sm">
-                <a href={quotation.pdfUrl} target="_blank" rel="noreferrer" className="inline-flex min-w-0 items-center gap-2 break-all text-primary hover:underline">
+                <a href={`${quotation.pdfUrl}?v=${encodeURIComponent(quotation.updatedAt || Date.now())}`} target="_blank" rel="noreferrer" className="inline-flex min-w-0 items-center gap-2 break-all text-primary hover:underline">
                   <FaFilePdf className="h-4 w-4 shrink-0 text-red-500" />
                   <span className="truncate">{quotation.pdfUrl.split("/").pop()}</span>
                 </a>

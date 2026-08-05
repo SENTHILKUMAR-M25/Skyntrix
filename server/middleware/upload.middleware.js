@@ -44,6 +44,16 @@ const resumeFilter = (req, file, cb) => {
   }
 };
 
+const leadFileExts = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".zip", ".csv", ".txt"]);
+
+const leadFileFilter = (req, file, cb) => {
+  if (leadFileExts.has(path.extname(file.originalname).toLowerCase())) {
+    cb(null, true);
+  } else {
+    cb(ApiError.badRequest("Unsupported file type for lead attachment."));
+  }
+};
+
 export const uploadImage = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 },
@@ -84,3 +94,10 @@ export const uploadPortfolioFiles = multer({
 ]);
 
 export const uploadDirPath = () => uploadDir;
+
+// Generic lead/opportunity attachment (documents, images, archives, etc.)
+export const uploadLeadFile = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: leadFileFilter,
+}).single("file");

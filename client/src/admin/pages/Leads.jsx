@@ -1,16 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaSearch, FaTrash, FaEye, FaArrowRight, FaWhatsapp, FaAddressBook } from "react-icons/fa";
+import { FaSearch, FaTrash, FaEye, FaArrowRight, FaWhatsapp, FaAddressBook, FaColumns } from "react-icons/fa";
 import { adminGet, adminPut, adminDelete, adminPost } from "../api";
 import { useToast } from "../Toast";
 import { Badge, Button, EmptyState, Field, Input, Loading, Modal, PageHeader, Select, Textarea } from "../components/Ui";
+import { ALL_STAGES } from "../utils/pipeline";
 
-const statusOptions = [
-  { value: "new", label: "New" },
-  { value: "contacted", label: "Contacted" },
-  { value: "converted", label: "Converted" },
-  { value: "closed", label: "Closed" },
-];
+const statusOptions = ALL_STAGES.map((s) => ({ value: s.value, label: s.label }));
 
 export default function Leads() {
   const { toast } = useToast();
@@ -108,9 +104,14 @@ export default function Leads() {
         title="Leads"
         subtitle="Inquiries submitted through the contact form"
         action={
-          <Button variant="secondary" onClick={() => navigate("/admin/lead-contacts")}>
-            <FaAddressBook className="h-4 w-4" /> Lead Contacts
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={() => navigate("/admin/pipeline")}>
+              <FaColumns className="h-4 w-4" /> Pipeline Board
+            </Button>
+            <Button variant="secondary" onClick={() => navigate("/admin/lead-contacts")}>
+              <FaAddressBook className="h-4 w-4" /> Lead Contacts
+            </Button>
+          </div>
         }
       />
 
