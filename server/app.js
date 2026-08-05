@@ -11,6 +11,7 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import { env } from "./config/env.js";
 import routes from "./routes/index.js";
+import whatsappWebhookRoutes from "./routes/whatsappWebhook.routes.js";
 import { notFound, errorHandler } from "./middleware/errorHandler.middleware.js";
 import { apiLimiter } from "./middleware/rateLimit.middleware.js";
 import { auditRequest } from "./middleware/audit.middleware.js";
@@ -37,6 +38,10 @@ app.use(
     credentials: true,
   })
 );
+
+// --- WhatsApp webhook: mounted BEFORE the JSON body parser because signature
+// verification needs the raw request body. No rate limit (Meta sends bursts). ---
+app.use(`${env.apiPrefix}/whatsapp`, whatsappWebhookRoutes);
 
 // --- Body parsing (limit to reasonable size) ---
 app.use(express.json({ limit: "10kb" }));

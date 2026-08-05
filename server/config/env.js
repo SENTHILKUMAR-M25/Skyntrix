@@ -10,8 +10,12 @@ const bool = (v) => v === "true";
 export const env = {
   nodeEnv: process.env.NODE_ENV || "development",
   port: Number(process.env.PORT) || 5000,
+  // BASE_URL is the canonical public origin for generated content (PDFs, etc.).
+  // In production it is the app's public domain; in development it should be a
+  // public tunnel (ngrok / Cloudflare Tunnel) so Meta can download attachments.
+  baseUrl: process.env.BASE_URL || process.env.UPLOADS_URL || "http://localhost:5000",
   appUrl: process.env.APP_URL || "http://localhost:5173",
-  uploadUrl: process.env.UPLOADS_URL || "http://localhost:5000",
+  uploadUrl: process.env.UPLOADS_URL || process.env.BASE_URL || "http://localhost:5000",
   clientUrl: process.env.CLIENT_URL || "http://localhost:5173",
   adminUrl: process.env.ADMIN_URL || "http://localhost:5173",
   apiPrefix: process.env.API_PREFIX || "/api",
@@ -59,6 +63,15 @@ export const env = {
     phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || "",
     apiVersion: process.env.WHATSAPP_API_VERSION || "v19.0",
     website: process.env.WHATSAPP_WEBSITE || "https://skyntrix.vercel.app/",
+    // Webhook verification token (set on the Meta dashboard) + optional App
+    // Secret used to verify x-hub-signature-256 on incoming events.
+    webhookVerifyToken: process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || "",
+    webhookAppSecret: process.env.WHATSAPP_WEBHOOK_APP_SECRET || "",
+    // Pre-approved message template used to initiate a conversation when the
+    // 24-hour customer service window is closed. Body must define exactly
+    // {{1}} client name, {{2}} quotation no, {{3}} project, {{4}} total amount.
+    quotationTemplateName: process.env.WHATSAPP_QUOTATION_TEMPLATE_NAME || "skyntrix_quotation",
+    quotationTemplateLang: process.env.WHATSAPP_QUOTATION_TEMPLATE_LANG || "en",
   },
 
   corsOrigins: (process.env.CORS_ORIGINS || "http://localhost:5173")

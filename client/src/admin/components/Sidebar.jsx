@@ -1,5 +1,6 @@
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { FaTachometerAlt, FaCogs, FaImages, FaUsers, FaComments, FaNewspaper, FaBriefcase, FaEnvelope, FaPaperPlane, FaCog, FaShieldAlt, FaSignOutAlt, FaAddressBook, FaChevronDown, FaListAlt, FaPlusCircle, FaHistory } from "react-icons/fa";
+import { FaFileInvoiceDollar, FaFileCirclePlus, FaFileLines } from "react-icons/fa6";
 import { useState } from "react";
 import { useAuth } from "../AuthContext";
 import { useToast } from "../Toast";
@@ -25,12 +26,18 @@ const leadContactLinks = [
   { to: "/admin/lead-contacts/history", label: "Sent History", icon: FaHistory },
 ];
 
+const quotationLinks = [
+  { to: "/admin/quotations", label: "All Quotations", icon: FaFileLines },
+  { to: "/admin/quotations/create", label: "Create Quotation", icon: FaFileCirclePlus },
+];
+
 export default function Sidebar({ onNavigate }) {
   const { admin, logout } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const [leadContactOpen, setLeadContactOpen] = useState(location.pathname.startsWith("/admin/lead-contacts"));
+  const [quotationOpen, setQuotationOpen] = useState(location.pathname.startsWith("/admin/quotations"));
 
   const handleLogout = async () => {
     await logout();
@@ -82,6 +89,41 @@ export default function Sidebar({ onNavigate }) {
           {leadContactOpen && (
             <div className="mt-1 space-y-0.5 border-l border-white/10 pl-3 ml-4">
               {leadContactLinks.map((l) => (
+                <NavLink
+                  key={l.to}
+                  to={l.to}
+                  onClick={onNavigate}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors",
+                      isActive ? "bg-primary-gradient text-white" : "text-white/55 hover:bg-white/5 hover:text-white"
+                    )
+                  }
+                >
+                  <l.icon className="h-3.5 w-3.5 shrink-0" />
+                  {l.label}
+                </NavLink>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Quotations group */}
+        <div className="mt-2">
+          <button
+            onClick={() => setQuotationOpen((o) => !o)}
+            className={cn(
+              "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+              location.pathname.startsWith("/admin/quotations") ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white"
+            )}
+          >
+            <FaFileInvoiceDollar className="h-4 w-4 shrink-0" />
+            <span className="flex-1 text-left">Quotations</span>
+            <FaChevronDown className={cn("h-3 w-3 transition-transform", quotationOpen && "rotate-180")} />
+          </button>
+          {quotationOpen && (
+            <div className="mt-1 space-y-0.5 border-l border-white/10 pl-3 ml-4">
+              {quotationLinks.map((l) => (
                 <NavLink
                   key={l.to}
                   to={l.to}

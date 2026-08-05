@@ -11,6 +11,7 @@ import leadContactRoutes from "./leadContact.routes.js";
 import newsletterRoutes from "./newsletter.routes.js";
 import settingsRoutes from "./settings.routes.js";
 import dashboardRoutes from "./dashboard.routes.js";
+import quotationRoutes from "./quotation.routes.js";
 import healthRoutes from "./health.routes.js";
 
 const router = Router();
@@ -31,5 +32,6 @@ router.use("/lead-contacts", leadContactRoutes);
 router.use("/newsletter", newsletterRoutes);
 router.use("/settings", settingsRoutes);
 router.use("/dashboard", dashboardRoutes);
+router.use("/quotations", quotationRoutes);
 
 export default router;
