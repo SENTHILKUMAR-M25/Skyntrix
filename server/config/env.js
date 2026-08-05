@@ -74,6 +74,8 @@ export const env = {
     quotationTemplateLang: process.env.WHATSAPP_QUOTATION_TEMPLATE_LANG || "en",
     invoiceTemplateName: process.env.WHATSAPP_INVOICE_TEMPLATE_NAME || "skyntrix_invoice",
     invoiceTemplateLang: process.env.WHATSAPP_INVOICE_TEMPLATE_LANG || "en",
+    receiptTemplateName: process.env.WHATSAPP_RECEIPT_TEMPLATE_NAME || "skyntrix_invoice",
+    receiptTemplateLang: process.env.WHATSAPP_RECEIPT_TEMPLATE_LANG || "en",
   },
 
   corsOrigins: (process.env.CORS_ORIGINS || "http://localhost:5173")

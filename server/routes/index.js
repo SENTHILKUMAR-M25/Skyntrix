@@ -13,6 +13,7 @@ import settingsRoutes from "./settings.routes.js";
 import dashboardRoutes from "./dashboard.routes.js";
 import quotationRoutes from "./quotation.routes.js";
 import invoiceRoutes from "./invoice.routes.js";
+import receiptRoutes from "./receipt.routes.js";
 import healthRoutes from "./health.routes.js";
 
 const router = Router();
@@ -35,5 +36,6 @@ router.use("/settings", settingsRoutes);
 router.use("/dashboard", dashboardRoutes);
 router.use("/quotations", quotationRoutes);
 router.use("/invoices", invoiceRoutes);
+router.use("/receipts", receiptRoutes);
 
 export default router;

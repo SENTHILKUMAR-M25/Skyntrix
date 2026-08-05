@@ -23,6 +23,8 @@ import QuotationDetail from "./pages/quotations/QuotationDetail";
 import Invoices from "./pages/invoices/Invoices";
 import CreateInvoice from "./pages/invoices/CreateInvoice";
 import InvoiceDetail from "./pages/invoices/InvoiceDetail";
+import Receipts from "./pages/receipts/Receipts";
+import ReceiptDetail from "./pages/receipts/ReceiptDetail";
 import Careers from "./pages/Careers";
 import Newsletter from "./pages/Newsletter";
 import Settings from "./pages/Settings";
@@ -59,6 +61,8 @@ export default function AdminRoutes() {
               <Route path="invoices/create" element={<CreateInvoice />} />
               <Route path="invoices/:id" element={<InvoiceDetail />} />
               <Route path="invoices/:id/edit" element={<CreateInvoice />} />
+              <Route path="receipts" element={<Receipts />} />
+              <Route path="receipts/:id" element={<ReceiptDetail />} />
               <Route path="careers" element={<Careers />} />
               <Route path="newsletter" element={<Newsletter />} />
               <Route path="settings" element={<Settings />} />

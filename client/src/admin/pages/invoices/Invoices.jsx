@@ -3,11 +3,13 @@ import { useNavigate } from "react-router-dom";
 import {
   FaSearch, FaEye, FaTrash, FaDownload, FaWhatsapp, FaEnvelope, FaFileInvoice, FaFileAlt, FaCheckCircle,
 } from "react-icons/fa";
+import { FaReceipt } from "react-icons/fa6";
 import { adminGet, adminPost, adminDelete } from "../../api";
 import { useAuth } from "../../AuthContext";
 import { useToast } from "../../Toast";
 import { Button, EmptyState, Input, Loading, Modal, PageHeader, Select } from "../../components/Ui";
 import InvoiceStatCards from "../../components/invoices/InvoiceStatCards";
+import GenerateReceiptModal from "../../components/receipts/GenerateReceiptModal";
 import {
   INVOICE_STATUS_OPTIONS, INVOICE_PAYMENT_STATUS_OPTIONS, INVOICE_TYPE_OPTIONS, INVOICE_SORT_OPTIONS,
   formatMoney, formatMobileNumber, formatDate, downloadInvoicePdf, isOverdue,
@@ -50,6 +52,7 @@ export default function Invoices() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [sendTarget, setSendTarget] = useState(null);
   const [sendChannel, setSendChannel] = useState("whatsapp");
+  const [receiptTarget, setReceiptTarget] = useState(null);
   const [busy, setBusy] = useState(false);
 
   const isManager = ["super-admin", "admin"].includes(admin?.role);
@@ -260,6 +263,11 @@ export default function Invoices() {
                             <FaCheckCircle className="h-3.5 w-3.5" />
                           </button>
                         )}
+                        {row.status === "paid" && (
+                          <button onClick={() => setReceiptTarget(row)} className="rounded-md p-2 text-primary hover:bg-primary/10" title="Generate receipt">
+                            <FaReceipt className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                         {canDelete && (
                           <button onClick={() => setDeleteTarget(row._id)} className="rounded-md p-2 text-ink/50 hover:bg-red-50 hover:text-red-600" title="Delete">
                             <FaTrash className="h-3.5 w-3.5" />
@@ -315,6 +323,13 @@ export default function Invoices() {
         </>}>
         <p className="text-ink/70">Delete this invoice, its PDF and send logs? This cannot be undone.</p>
       </Modal>
+
+      <GenerateReceiptModal
+        open={!!receiptTarget}
+        onClose={() => setReceiptTarget(null)}
+        invoice={receiptTarget}
+        onGenerated={() => { fetchData(); fetchStats(); setReceiptTarget(null); }}
+      />
     </div>
   );
 }

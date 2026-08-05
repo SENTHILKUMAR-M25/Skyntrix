@@ -1,6 +1,7 @@
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { FaTachometerAlt, FaCogs, FaImages, FaUsers, FaComments, FaNewspaper, FaBriefcase, FaEnvelope, FaPaperPlane, FaCog, FaShieldAlt, FaSignOutAlt, FaAddressBook, FaChevronDown, FaListAlt, FaPlusCircle, FaHistory, FaColumns } from "react-icons/fa";
 import { FaFileInvoiceDollar, FaFileCirclePlus, FaFileLines } from "react-icons/fa6";
+import { FaReceipt } from "react-icons/fa6";
 import { useState } from "react";
 import { useAuth } from "../AuthContext";
 import { useToast } from "../Toast";
@@ -37,6 +38,10 @@ const invoiceLinks = [
   { to: "/admin/invoices/create", label: "Create Invoice", icon: FaFileCirclePlus },
 ];
 
+const receiptLinks = [
+  { to: "/admin/receipts", label: "All Receipts", icon: FaFileLines },
+];
+
 export default function Sidebar({ onNavigate }) {
   const { admin, logout } = useAuth();
   const { toast } = useToast();
@@ -45,6 +50,7 @@ export default function Sidebar({ onNavigate }) {
   const [leadContactOpen, setLeadContactOpen] = useState(location.pathname.startsWith("/admin/lead-contacts"));
   const [quotationOpen, setQuotationOpen] = useState(location.pathname.startsWith("/admin/quotations"));
   const [invoiceOpen, setInvoiceOpen] = useState(location.pathname.startsWith("/admin/invoices"));
+  const [receiptOpen, setReceiptOpen] = useState(location.pathname.startsWith("/admin/receipts"));
 
   const handleLogout = async () => {
     await logout();
@@ -166,6 +172,41 @@ export default function Sidebar({ onNavigate }) {
           {invoiceOpen && (
             <div className="mt-1 space-y-0.5 border-l border-white/10 pl-3 ml-4">
               {invoiceLinks.map((l) => (
+                <NavLink
+                  key={l.to}
+                  to={l.to}
+                  onClick={onNavigate}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors",
+                      isActive ? "bg-primary-gradient text-white" : "text-white/55 hover:bg-white/5 hover:text-white"
+                    )
+                  }
+                >
+                  <l.icon className="h-3.5 w-3.5 shrink-0" />
+                  {l.label}
+                </NavLink>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Receipts group */}
+        <div className="mt-2">
+          <button
+            onClick={() => setReceiptOpen((o) => !o)}
+            className={cn(
+              "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+              location.pathname.startsWith("/admin/receipts") ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white"
+            )}
+          >
+            <FaReceipt className="h-4 w-4 shrink-0" />
+            <span className="flex-1 text-left">Receipts</span>
+            <FaChevronDown className={cn("h-3 w-3 transition-transform", receiptOpen && "rotate-180")} />
+          </button>
+          {receiptOpen && (
+            <div className="mt-1 space-y-0.5 border-l border-white/10 pl-3 ml-4">
+              {receiptLinks.map((l) => (
                 <NavLink
                   key={l.to}
                   to={l.to}

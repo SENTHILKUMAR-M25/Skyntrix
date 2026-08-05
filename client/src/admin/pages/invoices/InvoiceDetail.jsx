@@ -10,6 +10,7 @@ import { useAuth } from "../../AuthContext";
 import { useToast } from "../../Toast";
 import { Button, EmptyState, Field, Input, Loading, Modal, PageHeader, Select } from "../../components/Ui";
 import InvoicePreviewModal from "../../components/invoices/InvoicePreviewModal";
+import GenerateReceiptModal from "../../components/receipts/GenerateReceiptModal";
 import {
   formatMoney, formatMobileNumber, formatDate, fullDateTime, timeAgo, downloadInvoicePdf, isOverdue,
   PAYMENT_METHOD_OPTIONS, INVOICE_TYPE_OPTIONS,
@@ -60,6 +61,9 @@ export default function InvoiceDetail() {
   const [preview, setPreview] = useState(false);
   const [sendChannel, setSendChannel] = useState("whatsapp");
   const [sending, setSending] = useState(false);
+  const [receiptOpen, setReceiptOpen] = useState(false);
+  const [receipts, setReceipts] = useState([]);
+  const [receiptsLoading, setReceiptsLoading] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [payment, setPayment] = useState(EMPTY_PAYMENT);
   const [savingPayment, setSavingPayment] = useState(false);
@@ -108,9 +112,26 @@ export default function InvoiceDetail() {
     }
   }, []);
 
+  const fetchReceipts = useCallback(async (quotationId) => {
+    if (!quotationId) {
+      setReceipts([]);
+      return;
+    }
+    setReceiptsLoading(true);
+    try {
+      const res = await adminGet("/receipts/history", { quotationId });
+      setReceipts(res.data || []);
+    } catch (e) {
+      setReceipts([]);
+    } finally {
+      setReceiptsLoading(false);
+    }
+  }, []);
+
   useEffect(() => { fetchInvoice(); }, [fetchInvoice]);
   useEffect(() => { fetchLogs(); }, [fetchLogs]);
   useEffect(() => { fetchProject(invoice?.quotationId); }, [invoice?.quotationId, fetchProject]);
+  useEffect(() => { fetchReceipts(invoice?.quotationId); }, [invoice?.quotationId, fetchReceipts]);
 
   const handleDownload = async () => {
     try {
@@ -283,6 +304,11 @@ export default function InvoiceDetail() {
                 <FaCheckCircle /> Mark Paid
               </Button>
             )}
+            {isPaid && (
+              <Button onClick={() => setReceiptOpen(true)}>
+                <FaFilePdf /> Generate Receipt
+              </Button>
+            )}
             {!isCancelled && (
               <Button variant="secondary" onClick={() => setCancelTarget(true)} className="text-red-600 hover:border-red-300 hover:bg-red-50">
                 <FaBan /> Cancel
@@ -384,6 +410,45 @@ export default function InvoiceDetail() {
                       <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium capitalize ${PAY_BADGE[inv.paymentStatus] || PAY_BADGE.pending}`}>
                         {inv.paymentStatus}
                       </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {receiptsLoading ? (
+            <Loading label="Loading receipts..." />
+          ) : (
+            <div className="card overflow-hidden">
+              <div className="flex items-center justify-between border-b border-base p-4">
+                <div>
+                  <h2 className="font-display text-sm font-bold uppercase tracking-wide text-ink/60">Receipt history</h2>
+                  <p className="mt-0.5 text-xs text-ink/40">One receipt per successful payment on this project.</p>
+                </div>
+                {Number(invoice.projectTotal) > 0 && (
+                  <Button size="sm" variant="secondary" onClick={() => setReceiptOpen(true)}>
+                    <FaFilePdf className="h-3 w-3" /> Generate
+                  </Button>
+                )}
+              </div>
+              <div className="divide-y divide-base">
+                {!receipts.length ? (
+                  <div className="p-4"><EmptyState title="No receipts yet" hint="Mark an invoice as Paid and generate its payment receipt." /></div>
+                ) : receipts.map((r) => (
+                  <div key={r._id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
+                    <div className="min-w-0">
+                      <button
+                        onClick={() => navigate(`/admin/receipts/${r._id}`)}
+                        className="font-semibold text-primary hover:underline"
+                      >
+                        {r.receiptNumber}
+                      </button>
+                      <div className="text-[11px] text-ink/45">{r.invoiceNumber} · {formatDate(r.paidOn)}</div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="font-bold text-emerald-600">{formatMoney(r.amountReceived)}</span>
+                      <span className="text-ink/50">Paid till date {formatMoney(r.totalPaidTillDate)}</span>
                     </div>
                   </div>
                 ))}
@@ -585,6 +650,13 @@ export default function InvoiceDetail() {
         onSend={handleSend}
         sending={sending}
         title={invoice.sentAt ? "Resend invoice" : "Send invoice"}
+      />
+
+      <GenerateReceiptModal
+        open={receiptOpen}
+        onClose={() => setReceiptOpen(false)}
+        invoice={invoice}
+        onGenerated={() => { fetchReceipts(invoice?.quotationId); fetchInvoice(); }}
       />
 
       {/* Record payment modal */}
