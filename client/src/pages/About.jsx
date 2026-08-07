@@ -141,7 +141,7 @@ export default function About() {
         </div>
       </section>
 
-      {/* Team
+       {/* Team */}
       <section className="section-pad bg-white">
         <div className="container-x">
           <SectionHeading label="Our Team" title="The People Behind the Craft" />
@@ -160,7 +160,7 @@ export default function About() {
             ))}
           </div>
         </div>
-      </section> */}
+      </section> 
 
       {/* Certifications */}
       {/* <section className="section-pad pt-0">

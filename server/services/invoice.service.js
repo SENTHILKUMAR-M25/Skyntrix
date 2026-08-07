@@ -36,24 +36,51 @@ const PAGE_WIDTH = 595.28;
 const PAGE_HEIGHT = 841.89;
 const MARGIN = 45;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
+// Keeps the last content line safely above the fixed footer band.
+const BOTTOM_MARGIN = 70;
+
+// Modern brand typography. Inter static TTFs ship under server/assets/fonts;
+// we fall back to the Helvetica family if they are ever missing so a PDF can
+// never fail to render on a machine without the font assets.
+const FONT_DIR = path.join(__dirname, "..", "assets", "fonts");
+const FONT_FILES = {
+  regular: path.join(FONT_DIR, "Inter-Regular.ttf"),
+  medium: path.join(FONT_DIR, "Inter-Medium.ttf"),
+  semibold: path.join(FONT_DIR, "Inter-SemiBold.ttf"),
+  bold: path.join(FONT_DIR, "Inter-Bold.ttf"),
+};
+const HAS_INTER = Object.values(FONT_FILES).every((f) => fs.existsSync(f));
+const F = {
+  regular: HAS_INTER ? "Inter" : "Helvetica",
+  medium: HAS_INTER ? "Inter-Medium" : "Helvetica",
+  semibold: HAS_INTER ? "Inter-SemiBold" : "Helvetica-Bold",
+  bold: HAS_INTER ? "Inter-Bold" : "Helvetica-Bold",
+};
 
 const COLORS = {
-  ink: "#0B1120",
-  primary: "#6D28D9",
-  muted: "#6B7280",
-  border: "#E5E7EB",
+  ink: "#0F172A",
+  body: "#334155",
+  muted: "#64748B",
+  label: "#94A3B8",
+  border: "#E2E8F0",
   light: "#F8FAFC",
   white: "#FFFFFF",
+  primary: "#6D28D9",
+  primaryDark: "#5B21B6",
   softPurple: "#EDE9FE",
-  label: "#9CA3AF",
   success: "#059669",
   warning: "#D97706",
   danger: "#DC2626",
 };
 
-const SECTION_TITLE_HEIGHT = 30;
-const SIGNATURE_HEIGHT = 72;
-const SECTION_GAP = 10;
+// Vertical rhythm. Every section is sized off these primitives so spacing stays
+// consistent and page breaks only ever fall on whole sections.
+const SECTION_TITLE_HEIGHT = 26;
+const SIGNATURE_HEIGHT = 66;
+const SECTION_GAP = 8;
+const CONTENT_TOP = 132;
+const CARD_PAD = 16;
+const ROW_GAP = 7;
 
 const INVOICE_TERMS = [
   "Payment is due on or before the due date mentioned above.",
@@ -228,36 +255,58 @@ const ensureSpace = (doc, height) => {
   }
 };
 
+const textH = (doc, str, size, family, width) => {
+  doc.font(family).fontSize(size);
+  return doc.heightOfString(String(str ?? " "), { width });
+};
+
 const drawSectionTitle = (doc, title) => {
   ensureSpace(doc, SECTION_TITLE_HEIGHT);
   const y = doc.y;
-  doc.font("Helvetica-Bold").fontSize(10.5).fillColor(COLORS.ink).text(title.toUpperCase(), MARGIN, y, { width: CONTENT_WIDTH });
-  doc.rect(MARGIN, y + 13, 26, 2.5).fillColor(COLORS.primary).fill();
-  doc.moveTo(MARGIN, y + 19.5).lineTo(PAGE_WIDTH - MARGIN, y + 19.5).lineWidth(0.7).strokeColor(COLORS.border).stroke();
+  doc.font(F.semibold).fontSize(9.5).fillColor(COLORS.ink)
+    .text(title.toUpperCase(), MARGIN, y, { width: CONTENT_WIDTH, characterSpacing: 0.6 });
+  doc.rect(MARGIN, y + 13.5, 24, 2.5).fillColor(COLORS.primary).fill();
+  doc.moveTo(MARGIN, y + 19.5).lineTo(PAGE_WIDTH - MARGIN, y + 19.5).lineWidth(0.8).strokeColor(COLORS.border).stroke();
   doc.y = y + SECTION_TITLE_HEIGHT;
 };
 
 const drawHeader = (doc, invoice) => {
-  doc.rect(0, 0, PAGE_WIDTH, 116).fillColor(COLORS.ink).fill();
-  doc.rect(0, 116, PAGE_WIDTH, 4).fillColor(COLORS.primary).fill();
+  doc.rect(0, 0, PAGE_WIDTH, 118).fillColor(COLORS.ink).fill();
+  doc.rect(0, 118, PAGE_WIDTH, 4).fillColor(COLORS.primary).fill();
 
   try {
     if (fs.existsSync(LOGO_PATH)) {
-      doc.image(LOGO_PATH, MARGIN, 30, { width: 54, height: 54 });
+      doc.image(LOGO_PATH, MARGIN, 30, { width: 52, height: 52 });
     }
   } catch (err) {
     logger.warn(`[Invoice] logo render skipped: ${err.message}`);
   }
 
-  doc.font("Helvetica-Bold").fontSize(17).fillColor(COLORS.white).text(COMPANY.name, 118, 34, { width: 240 });
-  doc.font("Helvetica").fontSize(8.5).fillColor("#C4B5FD").text(COMPANY.tagline, 118, 58, { width: 240 });
+  doc.font(F.bold).fontSize(16).fillColor(COLORS.white).text(COMPANY.name, 111, 30, { width: 235, characterSpacing: 0.2 });
+  doc.font(F.regular).fontSize(8).fillColor("#C4B5FD").text(COMPANY.tagline, 111, 54, { width: 235, characterSpacing: 0.2 });
 
-  doc.font("Helvetica-Bold").fontSize(15).fillColor(COLORS.white).text("INVOICE", 340, 26, { width: 210, align: "right" });
-  doc.font("Helvetica-Bold").fontSize(9).fillColor("#E9D5FF").text(`No: ${invoice.invoiceNumber}`, 340, 52, { width: 210, align: "right" });
-  doc.font("Helvetica").fontSize(8.5).fillColor("#A5B4FC").text(`Date: ${formatDate(invoice.invoiceDate)}`, 340, 68, { width: 210, align: "right" });
-  doc.font("Helvetica").fontSize(8.5).fillColor("#A5B4FC").text(`Due Date: ${formatDate(invoice.dueDate)}`, 340, 83, { width: 210, align: "right" });
-  doc.font("Helvetica-Bold").fontSize(8).fillColor(invoice.paymentStatus === "paid" ? "#34D399" : invoice.paymentStatus === "overdue" ? "#FCA5A5" : "#FDE68A")
-    .text(`Status: ${String(invoice.paymentStatus || "pending").toUpperCase()}`, 340, 98, { width: 210, align: "right" });
+  const rightX = PAGE_WIDTH - MARGIN - 210;
+  doc.font(F.semibold).fontSize(16).fillColor(COLORS.white)
+    .text("INVOICE", rightX, 20, { width: 210, align: "right", characterSpacing: 2 });
+  doc.font(F.semibold).fontSize(9).fillColor("#E9D5FF")
+    .text(`No: ${invoice.invoiceNumber}`, rightX, 46, { width: 210, align: "right" });
+  doc.font(F.regular).fontSize(8.5).fillColor("#A5B4FC")
+    .text(`Date: ${formatDate(invoice.invoiceDate)}`, rightX, 63, { width: 210, align: "right" });
+  doc.font(F.regular).fontSize(8.5).fillColor("#A5B4FC")
+    .text(`Due Date: ${formatDate(invoice.dueDate)}`, rightX, 79, { width: 210, align: "right" });
+
+  const statusCfg = {
+    paid: { bg: "#064E3B", fg: "#6EE7B7" },
+    overdue: { bg: "#7F1D1D", fg: "#FCA5A5" },
+    partial: { bg: "#5B21B6", fg: "#DDD6FE" },
+    pending: { bg: "#1E293B", fg: "#FDE68A" },
+  };
+  const cfg = statusCfg[invoice.paymentStatus] || statusCfg.pending;
+  const statusText = `STATUS: ${String(invoice.paymentStatus || "pending").toUpperCase()}`;
+  const pillW = doc.font(F.semibold).fontSize(7.5).widthOfString(statusText) + 18;
+  doc.roundedRect(PAGE_WIDTH - MARGIN - pillW, 97, pillW, 15, 7.5).fillColor(cfg.bg).fill();
+  doc.font(F.semibold).fontSize(7.5).fillColor(cfg.fg)
+    .text(statusText, PAGE_WIDTH - MARGIN - pillW + 9, 99.5, { width: pillW - 18, align: "center", characterSpacing: 0.6 });
 };
 
 const formatMobileDisplay = (value) => {
@@ -267,27 +316,21 @@ const formatMobileDisplay = (value) => {
   return String(value || "—");
 };
 
+/**
+ * Single rounded card split into two equal columns (Bill To | Invoice Details)
+ * on a shared vertical grid, with labels and values aligned so both columns
+ * always read as one balanced, premium unit.
+ */
 const drawInfoCard = (doc, invoice) => {
-  const titleH = 28;
-  const rowH = 16;
-  const rowCount = 5;
-  const padY = 12;
-  const cardH = titleH + rowCount * rowH + padY;
-  ensureSpace(doc, cardH + SECTION_GAP);
-  const y = doc.y;
-  const colGap = 14;
+  const padX = CARD_PAD;
+  const padY = 13;
+  const titleH = 22;
+  const colGap = 20;
   const colW = (CONTENT_WIDTH - colGap) / 2;
-  const leftX = MARGIN + 14;
-  const rightX = MARGIN + colW + colGap + 14;
-  const labelW = 70;
-  const valueW = colW - labelW - 14;
-
-  doc.roundedRect(MARGIN, y, CONTENT_WIDTH, cardH, 6).fillColor(COLORS.light).fill();
-  doc.roundedRect(MARGIN, y, CONTENT_WIDTH, cardH, 6).lineWidth(0.8).strokeColor(COLORS.border).stroke();
-
-  doc.font("Helvetica-Bold").fontSize(8).fillColor(COLORS.primary);
-  doc.text("BILL TO", leftX, y + 10);
-  doc.text("INVOICE DETAILS", rightX, y + 10);
+  const labelW = 72;
+  const valueW = colW - labelW - padX;
+  const leftX = MARGIN + padX;
+  const rightX = MARGIN + colW + colGap + padX;
 
   const rows = [
     [["CLIENT", invoice.clientName], ["PROJECT", invoice.projectName]],
@@ -297,103 +340,179 @@ const drawInfoCard = (doc, invoice) => {
     [["ADDRESS", invoice.billingAddress], ["GSTIN", invoice.gstin || "—"]],
   ];
 
+  const rowHs = rows.map(([l, r]) => {
+    const lh = textH(doc, l[1], 8, F.regular, valueW);
+    const rh = textH(doc, r[1], 8, F.regular, valueW);
+    return Math.max(13, Math.max(lh, rh));
+  });
+  let bodyH = 0;
+  rowHs.forEach((h, i) => { bodyH += h + (i === rowHs.length - 1 ? 0 : ROW_GAP); });
+
+  const cardH = titleH + bodyH + padY;
+  ensureSpace(doc, cardH + SECTION_GAP);
+  const y = doc.y;
+
+  doc.roundedRect(MARGIN, y, CONTENT_WIDTH, cardH, 8).fillColor(COLORS.light).fill();
+  doc.roundedRect(MARGIN, y, CONTENT_WIDTH, cardH, 8).lineWidth(1).strokeColor(COLORS.border).stroke();
+
+  doc.font(F.semibold).fontSize(8).fillColor(COLORS.primary);
+  doc.text("BILL TO", leftX, y + 9, { width: colW - padX, lineBreak: false, characterSpacing: 0.5 });
+  doc.text("INVOICE DETAILS", rightX, y + 9, { width: colW - padX, lineBreak: false, characterSpacing: 0.5 });
+
+  doc.moveTo(MARGIN + padX, y + titleH - 2).lineTo(PAGE_WIDTH - MARGIN - padX, y + titleH - 2)
+    .lineWidth(0.7).strokeColor(COLORS.border).stroke();
+  const midX = MARGIN + colW + colGap / 2;
+  doc.moveTo(midX, y + titleH + 2).lineTo(midX, y + cardH - 6)
+    .lineWidth(0.7).strokeColor(COLORS.border).stroke();
+
+  let cursor = y + titleH;
   rows.forEach((pair, i) => {
-    const ry = y + titleH + i * rowH;
     pair.forEach(([label, value], col) => {
       const x = col === 0 ? leftX : rightX;
-      doc.font("Helvetica-Bold").fontSize(7).fillColor(COLORS.label).text(label, x, ry, { width: labelW, lineBreak: false });
-      doc.font("Helvetica").fontSize(8.5).fillColor(COLORS.ink).text(String(value || "—"), x + labelW, ry, { width: valueW, lineBreak: false, ellipsis: true });
+      doc.font(F.bold).fontSize(6.5).fillColor(COLORS.label)
+        .text(label, x, cursor + 1, { width: labelW, lineBreak: false, characterSpacing: 0.5 });
+      doc.font(F.regular).fontSize(8).fillColor(COLORS.ink)
+        .text(String(value || "—"), x + labelW, cursor, { width: valueW, lineGap: 1 });
     });
+    cursor += rowHs[i] + (i === rowHs.length - 1 ? 0 : ROW_GAP);
   });
 
   doc.y = y + cardH + SECTION_GAP;
 };
 
+/** Project Information card placed immediately below the info card. */
 const drawProject = (doc, invoice) => {
   const desc = (invoice.projectDescription || "").trim();
   const nameH = 15;
-  const descH = desc ? doc.font("Helvetica").fontSize(9).heightOfString(desc, { width: CONTENT_WIDTH }) : 0;
-  ensureSpace(doc, SECTION_TITLE_HEIGHT + nameH + descH + SECTION_GAP);
+  const descGap = 4;
+  const descH = desc ? textH(doc, desc, 8.5, F.regular, CONTENT_WIDTH - CARD_PAD * 2) : 0;
+  const cardH = CARD_PAD + nameH + (desc ? descGap + descH : 0) + CARD_PAD;
+  ensureSpace(doc, SECTION_TITLE_HEIGHT + cardH + SECTION_GAP);
   drawSectionTitle(doc, "Project");
+
   const y0 = doc.y;
-  doc.font("Helvetica-Bold").fontSize(10).fillColor(COLORS.ink).text(invoice.projectName, MARGIN, y0, { width: CONTENT_WIDTH });
+  doc.roundedRect(MARGIN, y0, CONTENT_WIDTH, cardH, 8).fillColor(COLORS.light).fill();
+  doc.roundedRect(MARGIN, y0, CONTENT_WIDTH, cardH, 8).lineWidth(1).strokeColor(COLORS.border).stroke();
+  doc.font(F.semibold).fontSize(10.5).fillColor(COLORS.ink)
+    .text(invoice.projectName, MARGIN + CARD_PAD, y0 + CARD_PAD, { width: CONTENT_WIDTH - CARD_PAD * 2 });
   if (desc) {
-    doc.font("Helvetica").fontSize(9).fillColor(COLORS.muted).text(desc, MARGIN, y0 + 15, { width: CONTENT_WIDTH, lineGap: 2 });
-    doc.y = y0 + 15 + descH + SECTION_GAP;
-  } else {
-    doc.y = y0 + nameH + SECTION_GAP;
+    doc.font(F.regular).fontSize(8.5).fillColor(COLORS.muted)
+      .text(desc, MARGIN + CARD_PAD, y0 + CARD_PAD + nameH + descGap, { width: CONTENT_WIDTH - CARD_PAD * 2, lineGap: 2 });
   }
+  doc.y = y0 + cardH + SECTION_GAP;
 };
 
-const drawTableHeader = (doc, widths, y) => {
+// Itemised billing grid. Balanced column widths so every column aligns and the
+// two currency columns are equal; numeric cells are right aligned.
+const TABLE_COLS = [
+  { width: 26, align: "left" },
+  { width: 118, align: "left" },
+  { width: 122, align: "left" },
+  { width: 40, align: "right" },
+  { width: 98, align: "right" },
+  { width: 101.28, align: "right" },
+];
+
+const drawTableHeader = (doc, y) => {
   const rowStart = MARGIN;
-  doc.rect(rowStart, y, CONTENT_WIDTH, 20).fillColor(COLORS.ink).fill();
-  doc.font("Helvetica-Bold").fontSize(7.5).fillColor(COLORS.white);
-  const headers = [["#", widths[0]], ["ITEM", widths[1]], ["DESCRIPTION", widths[2]], ["QTY", widths[3]], ["UNIT PRICE", widths[4]], ["AMOUNT", widths[5]]];
-  let x = rowStart + 6;
-  headers.forEach(([text, w], i) => {
-    doc.text(text, x, y + 6, { width: w - 12, align: i >= 3 ? "right" : "left" });
-    x += w;
+  doc.rect(rowStart, y, CONTENT_WIDTH, 21).fillColor(COLORS.ink).fill();
+  doc.font(F.semibold).fontSize(7.5).fillColor(COLORS.white);
+  const headers = ["#", "ITEM", "DESCRIPTION", "QTY", "UNIT PRICE", "AMOUNT"];
+  let x = rowStart;
+  headers.forEach((text, i) => {
+    const col = TABLE_COLS[i];
+    doc.text(text, x + 7, y + 6.5, { width: col.width - 14, align: col.align, characterSpacing: 0.4 });
+    x += col.width;
   });
 };
 
 const drawItemsTable = (doc, invoice) => {
-  const widths = [22, 112, 148, 34, 82, 96];
   const rowStart = MARGIN;
+  const colXs = (() => { let acc = rowStart; return TABLE_COLS.map((c) => { const x = acc; acc += c.width; return x; }); })();
   const items = (invoice.items || []).filter((it) => it && it.name);
-  const cellHeight = (item) => {
+  const descW = TABLE_COLS[2].width - 14;
+  const nameW = TABLE_COLS[1].width - 14;
+  const cellH = (item) => {
     const desc = (item.description || "").trim() || "—";
-    return Math.max(24, doc.font("Helvetica").fontSize(8).heightOfString(desc, { width: widths[2] - 12 }) + 14);
+    const dh = textH(doc, desc, 8, F.regular, descW);
+    const nh = textH(doc, item.name, 8.5, F.semibold, nameW);
+    return Math.max(22, dh + 14, nh + 10);
   };
-  const rowHeights = items.length ? items.map(cellHeight) : [24];
-  const tableH = SECTION_TITLE_HEIGHT + 20 + rowHeights.reduce((a, b) => a + b, 0) + 30 + 6;
-  ensureSpace(doc, tableH);
+  const rowHs = items.length ? items.map(cellH) : [22];
+  // Only require the title, header and first row to fit together; further rows
+  // flow across pages with the header repeated, so a long table never wastes a
+  // mostly-empty first page.
+  const firstRowH = rowHs[0] || 22;
+  ensureSpace(doc, SECTION_TITLE_HEIGHT + 21 + firstRowH + SECTION_GAP);
   drawSectionTitle(doc, "Itemised Billing");
 
   let headerY = doc.y;
-  drawTableHeader(doc, widths, headerY);
+  drawTableHeader(doc, headerY);
+  let cy = headerY + 21;
 
-  let cy = headerY + 20;
+  const drawCell = (str, family, size, color, colIndex, rowH, multiLine = false) => {
+    const col = TABLE_COLS[colIndex];
+    const padX = 7;
+    const w = col.width - padX * 2;
+    const x = colXs[colIndex] + padX;
+    const th = textH(doc, str, size, family, w);
+    const ty = cy + Math.max(0, (rowH - th) / 2);
+    if (multiLine) {
+      doc.font(family).fontSize(size).fillColor(color).text(str, x, ty, { width: w, lineGap: 1 });
+    } else {
+      doc.font(family).fontSize(size).fillColor(color)
+        .text(str, x, ty, { width: w, align: col.align === "right" ? "right" : "left", lineBreak: false });
+    }
+  };
+
   if (!items.length) {
-    doc.rect(rowStart, cy, CONTENT_WIDTH, 24).fillColor(COLORS.white).fill();
-    doc.rect(rowStart, cy, CONTENT_WIDTH, 24).lineWidth(0.6).strokeColor(COLORS.border).stroke();
-    doc.font("Helvetica").fontSize(8.5).fillColor(COLORS.muted).text("No line items listed", rowStart + widths[0] + 6, cy + 8, { width: CONTENT_WIDTH - 40 });
-    cy += 24;
+    doc.rect(rowStart, cy, CONTENT_WIDTH, 22).fillColor(COLORS.white).fill();
+    doc.rect(rowStart, cy, CONTENT_WIDTH, 22).lineWidth(0.7).strokeColor(COLORS.border).stroke();
+    doc.font(F.regular).fontSize(8.5).fillColor(COLORS.muted)
+      .text("No line items listed", rowStart + 10, cy + 6.5, { width: CONTENT_WIDTH - 20 });
+    cy += 22;
   } else {
     items.forEach((item, i) => {
-      const desc = (item.description || "").trim() || "—";
-      const cellH = cellHeight(item);
-      if (cy + cellH > doc.page.maxY()) {
+      const h = rowHs[i];
+      if (cy + h > doc.page.maxY()) {
         doc.addPage();
         headerY = doc.y;
-        drawTableHeader(doc, widths, headerY);
-        cy = headerY + 20;
+        drawTableHeader(doc, headerY);
+        cy = headerY + 21;
       }
-      doc.rect(rowStart, cy, CONTENT_WIDTH, cellH)
-        .fillColor(i % 2 === 0 ? COLORS.light : COLORS.white).fill();
-      doc.rect(rowStart, cy, CONTENT_WIDTH, cellH).lineWidth(0.6).strokeColor(COLORS.border).stroke();
-      let x = rowStart + 6;
-      doc.font("Helvetica").fontSize(8.5).fillColor(COLORS.muted).text(String(i + 1), x, cy + 5, { width: widths[0] - 12 });
-      x += widths[0];
-      doc.font("Helvetica-Bold").fontSize(8.5).fillColor(COLORS.ink).text(item.name, x, cy + 5, { width: widths[1] - 12 });
-      x += widths[1];
-      doc.font("Helvetica").fontSize(8).fillColor(COLORS.muted).text(desc, x, cy + 5, { width: widths[2] - 12, lineGap: 1 });
-      x += widths[2];
-      doc.font("Helvetica").fontSize(8).fillColor(COLORS.ink).text(String(item.quantity || 0), x, cy + 5, { width: widths[3] - 12, align: "right" });
-      x += widths[3];
-      doc.font("Helvetica").fontSize(8).fillColor(COLORS.ink).text(formatMoney(item.unitPrice), x, cy + 5, { width: widths[4] - 12, align: "right" });
-      x += widths[4];
-      doc.font("Helvetica-Bold").fontSize(8.5).fillColor(COLORS.ink).text(formatMoney(item.amount), x, cy + 5, { width: widths[5] - 12, align: "right" });
-      cy += cellH;
+      doc.rect(rowStart, cy, CONTENT_WIDTH, h).fillColor(i % 2 === 0 ? COLORS.light : COLORS.white).fill();
+      doc.rect(rowStart, cy, CONTENT_WIDTH, h).lineWidth(0.7).strokeColor(COLORS.border).stroke();
+
+      const desc = (item.description || "").trim() || "—";
+      drawCell(String(i + 1), F.regular, 8, COLORS.muted, 0, h);
+      drawCell(item.name, F.semibold, 8.5, COLORS.ink, 1, h);
+      drawCell(desc, F.regular, 8, COLORS.muted, 2, h, true);
+      drawCell(String(item.quantity || 0), F.regular, 8, COLORS.ink, 3, h);
+      drawCell(formatMoney(item.unitPrice), F.regular, 8, COLORS.ink, 4, h);
+      drawCell(formatMoney(item.amount), F.semibold, 8.5, COLORS.ink, 5, h);
+      cy += h;
     });
   }
   doc.y = cy + SECTION_GAP;
 };
 
-const drawTotals = (doc, invoice) => {
-  const boxW = 230;
-  const boxX = MARGIN + CONTENT_WIDTH - boxW;
-  const rowH = 17;
+/**
+ * Notes card on the left and a dedicated Payment Summary card on the right,
+ * rendered side-by-side so nothing is wasted below the table. Labels are left
+ * aligned, currency values right aligned, and the Grand Total sits in a clearly
+ * highlighted band.
+ */
+const drawNotesAndSummary = (doc, invoice) => {
+  const padX = CARD_PAD;
+  const padY = 14;
+  const titleH = 22;
+  const colGap = 14;
+  const colW = (CONTENT_WIDTH - colGap) / 2;
+  const leftX = MARGIN + padX;
+  const summaryX = MARGIN + colW + colGap;
+  const rightX = summaryX + padX;
+  const innerW = colW - padX * 2;
+  const rowH = 13.5;
 
   const projectRows = Number(invoice.projectTotal) > 0
     ? [
@@ -403,107 +522,117 @@ const drawTotals = (doc, invoice) => {
         ["Remaining Balance", formatMoney(invoice.remainingBalance || 0)],
       ]
     : [];
-
-  const rows = [
+  const subtotalRows = [
     ["Subtotal", formatMoney(invoice.subtotal)],
     [`Discount${invoice.discountType === "percent" ? ` (${Number(invoice.discount) || 0}%)` : ""}`, `- ${formatMoney(invoice.discountAmount)}`],
     [`GST (${Number(invoice.taxRate) || 0}%)`, formatMoney(invoice.taxAmount)],
   ];
-  const totalH = rowH * rows.length + 30;
-
   const paidRows = [
     ["Amount Paid", formatMoney(invoice.amountPaid)],
     ["Balance Due", formatMoney(invoice.balanceDue)],
   ];
-  const projectH = projectRows.length ? projectRows.length * rowH + 12 : 0;
 
-  ensureSpace(doc, SECTION_TITLE_HEIGHT + projectH + totalH + paidRows.length * rowH + 30 + SECTION_GAP);
-  drawSectionTitle(doc, "Payment Summary");
-  const y0 = doc.y;
+  const summaryBodyH = (projectRows.length + subtotalRows.length + paidRows.length) * rowH + 33;
+  const summaryH = titleH + summaryBodyH + padY;
 
-  const drawLabelValue = (label, value, y, bold = false, color = COLORS.ink) => {
-    doc.font(bold ? "Helvetica-Bold" : "Helvetica").fontSize(8).fillColor(COLORS.muted).text(label, boxX, y + 3, { width: boxW - 130 });
-    doc.font(bold ? "Helvetica-Bold" : "Helvetica").fontSize(8.5).fillColor(color).text(value, boxX + (boxW - 130), y + 3, { width: 120, align: "right" });
+  const notesText = (invoice.notes || "").trim() || "Thank you for your business.";
+  const notesBodyH = textH(doc, notesText, 8.5, F.regular, innerW) + 2;
+  const notesH = titleH + notesBodyH + padY;
+
+  const rowTotalH = Math.max(summaryH, notesH);
+  ensureSpace(doc, rowTotalH + SECTION_GAP);
+  const y = doc.y;
+
+  doc.roundedRect(MARGIN, y, colW, rowTotalH, 8).fillColor(COLORS.light).fill();
+  doc.roundedRect(MARGIN, y, colW, rowTotalH, 8).lineWidth(1).strokeColor(COLORS.border).stroke();
+  doc.font(F.semibold).fontSize(8).fillColor(COLORS.primary)
+    .text("NOTES", leftX, y + 9, { width: innerW, characterSpacing: 0.5 });
+  doc.moveTo(MARGIN + padX, y + titleH - 2).lineTo(MARGIN + colW - padX, y + titleH - 2)
+    .lineWidth(0.7).strokeColor(COLORS.border).stroke();
+  doc.font(F.regular).fontSize(8.5).fillColor(COLORS.muted)
+    .text(notesText, leftX, y + titleH + 6, { width: innerW, lineGap: 2 });
+
+  doc.roundedRect(summaryX, y, colW, rowTotalH, 8).fillColor(COLORS.white).fill();
+  doc.roundedRect(summaryX, y, colW, rowTotalH, 8).lineWidth(1).strokeColor(COLORS.border).stroke();
+  doc.font(F.semibold).fontSize(8).fillColor(COLORS.primary)
+    .text("PAYMENT SUMMARY", rightX, y + 9, { width: innerW, characterSpacing: 0.5 });
+  doc.moveTo(summaryX + padX, y + titleH - 2).lineTo(summaryX + colW - padX, y + titleH - 2)
+    .lineWidth(0.7).strokeColor(COLORS.border).stroke();
+
+  const labelX = rightX;
+  const valueX = summaryX + colW - padX - 100;
+  const valueW = 100;
+  const drawRow = (label, value, yy, opts = {}) => {
+    doc.font(opts.bold ? F.semibold : F.regular).fontSize(7.5)
+      .fillColor(opts.color || COLORS.muted).text(label, labelX, yy, { width: valueX - labelX - 4, lineBreak: false });
+    doc.font(opts.bold ? F.semibold : F.regular).fontSize(8)
+      .fillColor(opts.valueColor || COLORS.ink).text(value, valueX, yy - 0.5, { width: valueW, align: "right", lineBreak: false });
   };
 
-  let cursor = y0;
-  if (projectRows.length) {
-    projectRows.forEach(([label, value], i) => {
-      const isLast = i === projectRows.length - 1;
-      drawLabelValue(label, value, cursor, true, isLast && (Number(invoice.remainingBalance) || 0) > 0 ? COLORS.danger : COLORS.ink);
-      cursor += rowH;
+  let cursor = y + titleH + 4;
+  projectRows.forEach(([label, value], i) => {
+    const isLast = i === projectRows.length - 1;
+    drawRow(label, value, cursor, {
+      bold: true,
+      valueColor: isLast && (Number(invoice.remainingBalance) || 0) > 0 ? COLORS.danger : COLORS.ink,
     });
-    cursor += 12;
-  }
-
-  rows.forEach(([label, value]) => {
-    drawLabelValue(label, value, cursor);
+    cursor += rowH;
+  });
+  subtotalRows.forEach(([label, value]) => {
+    drawRow(label, value, cursor);
     cursor += rowH;
   });
 
-  const totalY = cursor;
-  doc.rect(boxX - 8, totalY, boxW + 8, 30).fillColor(COLORS.softPurple).fill();
-  doc.font("Helvetica-Bold").fontSize(10).fillColor(COLORS.ink).text("GRAND TOTAL", boxX, totalY + 9, { width: 120 });
-  doc.font("Helvetica-Bold").fontSize(11).fillColor(COLORS.primary).text(formatMoney(invoice.totalAmount), boxX + (boxW - 130), totalY + 7, { width: 120, align: "right" });
+  const totalBandY = cursor + 3;
+  const bandH = 21;
+  doc.roundedRect(summaryX + 8, totalBandY, colW - 16, bandH, 5).fillColor(COLORS.softPurple).fill();
+  doc.font(F.bold).fontSize(8.5).fillColor(COLORS.ink)
+    .text("GRAND TOTAL", labelX, totalBandY + 5.5, { width: valueX - labelX - 4, lineBreak: false });
+  doc.font(F.bold).fontSize(10.5).fillColor(COLORS.primary)
+    .text(formatMoney(invoice.totalAmount), valueX, totalBandY + 3.5, { width: valueW, align: "right", lineBreak: false });
 
-  const paidY = totalY + 30 + 8;
+  const paidY = totalBandY + bandH + 5;
   paidRows.forEach(([label, value], i) => {
-    const ry = paidY + i * rowH;
-    drawLabelValue(label, value, ry, true, i === 1 ? (invoice.balanceDue > 0 ? COLORS.danger : COLORS.success) : COLORS.ink);
+    drawRow(label, value, paidY + i * rowH, {
+      bold: true,
+      valueColor: i === 1 ? (Number(invoice.balanceDue) > 0 ? COLORS.danger : COLORS.success) : COLORS.ink,
+    });
   });
 
-  doc.y = paidY + paidRows.length * rowH + SECTION_GAP;
-};
-
-const drawNotes = (doc, invoice) => {
-  const notes = (invoice.notes || "").trim();
-  const terms = (invoice.terms || "").trim();
-  const notesH = notes ? doc.font("Helvetica").fontSize(8.5).heightOfString(notes, { width: CONTENT_WIDTH }) + 16 : 0;
-  const termsTitleH = notes ? SECTION_TITLE_HEIGHT : 0;
-  drawSectionTitle(doc, "Notes");
-  if (notes) {
-    doc.font("Helvetica").fontSize(8.5).fillColor(COLORS.muted).text(notes, MARGIN, doc.y, { width: CONTENT_WIDTH, lineGap: 2 });
-    doc.y += notesH;
-  } else {
-    doc.font("Helvetica").fontSize(8.5).fillColor(COLORS.muted).text("Thank you for your business.", MARGIN, doc.y, { width: CONTENT_WIDTH });
-    doc.y += 16;
-  }
-  const termsH = computeTermsHeight(doc, invoice);
-  if (termsTitleH + termsH > 0) {
-    ensureSpace(doc, SECTION_TITLE_HEIGHT + termsH + SIGNATURE_HEIGHT);
-    drawTerms(doc, invoice, terms);
-  }
+  doc.y = y + rowTotalH + SECTION_GAP;
 };
 
 const computeTermsHeight = (doc, invoice) => {
   let h = SECTION_TITLE_HEIGHT;
   const terms = (invoice.terms || "").trim();
   if (terms) {
-    h += doc.font("Helvetica").fontSize(8.5).heightOfString(terms, { width: CONTENT_WIDTH - 18 }) + 6;
+    h += textH(doc, terms, 8.5, F.regular, CONTENT_WIDTH - 18) + 6;
   } else {
     INVOICE_TERMS.forEach((term) => {
-      const termH = doc.font("Helvetica").fontSize(8.5).heightOfString(term, { width: CONTENT_WIDTH - 18 });
-      h += termH + 4;
+      h += textH(doc, term, 8.5, F.regular, CONTENT_WIDTH - 18) + 4;
     });
   }
   return h;
 };
 
-const drawTerms = (doc, invoice, customTerms) => {
+const drawTerms = (doc, invoice) => {
   drawSectionTitle(doc, "Terms & Conditions");
-  const terms = (customTerms || "").trim() || INVOICE_TERMS;
-  if (typeof terms === "string") {
-    const termH = doc.font("Helvetica").fontSize(8.5).heightOfString(terms, { width: CONTENT_WIDTH - 18 });
-    doc.font("Helvetica").fontSize(8.5).fillColor(COLORS.muted).text(terms, MARGIN + 18, doc.y, { width: CONTENT_WIDTH - 18, lineGap: 2 });
-    doc.y += termH + 4;
+  const terms = (invoice.terms || "").trim();
+  if (terms) {
+    const th = textH(doc, terms, 8.5, F.regular, CONTENT_WIDTH - 18);
+    doc.font(F.regular).fontSize(8.5).fillColor(COLORS.muted)
+      .text(terms, MARGIN + 18, doc.y, { width: CONTENT_WIDTH - 18, lineGap: 2 });
+    doc.y += th + 4;
     return;
   }
-  terms.forEach((term, i) => {
-    const termH = doc.font("Helvetica").fontSize(8.5).heightOfString(term, { width: CONTENT_WIDTH - 18 });
+  INVOICE_TERMS.forEach((term, i) => {
+    const th = textH(doc, term, 8.5, F.regular, CONTENT_WIDTH - 18);
     const y = doc.y;
-    doc.font("Helvetica-Bold").fontSize(8.5).fillColor(COLORS.primary).text(`${i + 1}.`, MARGIN, y, { width: 16 });
-    doc.font("Helvetica").fontSize(8.5).fillColor(COLORS.muted).text(term, MARGIN + 18, y, { width: CONTENT_WIDTH - 18, lineGap: 1 });
-    doc.y = y + termH + 4;
+    doc.font(F.semibold).fontSize(8.5).fillColor(COLORS.primary)
+      .text(`${i + 1}.`, MARGIN, y, { width: 16, lineBreak: false });
+    doc.font(F.regular).fontSize(8.5).fillColor(COLORS.muted)
+      .text(term, MARGIN + 18, y, { width: CONTENT_WIDTH - 18, lineGap: 1 });
+    doc.y = y + th + 4;
   });
 };
 
@@ -511,10 +640,10 @@ const drawSignature = (doc) => {
   const y = doc.y;
   const boxX = PAGE_WIDTH - MARGIN - 190;
   const boxW = 190;
-  doc.font("Helvetica-Bold").fontSize(8.5).fillColor(COLORS.ink).text("For Skyntrix Technologies", boxX, y);
-  doc.moveTo(boxX, y + 32).lineTo(boxX + boxW, y + 32).lineWidth(1).strokeColor(COLORS.ink).stroke();
-  doc.font("Helvetica-Bold").fontSize(10).fillColor(COLORS.ink).text(COMPANY.founder, boxX, y + 38);
-  doc.font("Helvetica").fontSize(8.5).fillColor(COLORS.muted).text(COMPANY.founderTitle, boxX, y + 52);
+  doc.font(F.semibold).fontSize(8.5).fillColor(COLORS.ink).text("For Skyntrix Technologies", boxX, y, { width: boxW, align: "right" });
+  doc.moveTo(boxX, y + 30).lineTo(boxX + boxW, y + 30).lineWidth(1).strokeColor(COLORS.ink).stroke();
+  doc.font(F.semibold).fontSize(10).fillColor(COLORS.ink).text(COMPANY.founder, boxX, y + 36, { width: boxW, align: "right" });
+  doc.font(F.regular).fontSize(8.5).fillColor(COLORS.muted).text(COMPANY.founderTitle, boxX, y + 50, { width: boxW, align: "right" });
   doc.y = y + SIGNATURE_HEIGHT;
 };
 
@@ -522,11 +651,14 @@ const drawFooter = (doc, pageIndex, totalPages) => {
   const y = PAGE_HEIGHT - 52;
   doc.rect(0, y - 12, PAGE_WIDTH, 46).fillColor("#111827").fill();
   doc.rect(0, y - 12, PAGE_WIDTH, 3).fillColor(COLORS.primary).fill();
-  doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#E5E7EB").text(COMPANY.name, MARGIN, y, { lineBreak: false });
-  doc.font("Helvetica").fontSize(7.5).fillColor("#9CA3AF").text(COMPANY.address, MARGIN, y + 11, { lineBreak: false });
-  doc.font("Helvetica").fontSize(7.5).fillColor("#D1D5DB").text(`${COMPANY.website}  |  ${COMPANY.email}  |  ${COMPANY.phone}`, MARGIN, y + 22, { lineBreak: false });
+  // lineBreak:false AND no width -> bypasses the LineWrapper entirely. A width
+  // (or width auto-set) forces text through LineWrapper, whose auto page-break
+  // check sees the footer below the bottom margin and adds a page, recursing.
+  doc.font(F.bold).fontSize(7.5).fillColor("#E5E7EB").text(COMPANY.name, MARGIN, y, { lineBreak: false });
+  doc.font(F.regular).fontSize(7.5).fillColor("#9CA3AF").text(COMPANY.address, MARGIN, y + 11, { lineBreak: false });
+  doc.font(F.regular).fontSize(7.5).fillColor("#D1D5DB").text(`${COMPANY.website}  |  ${COMPANY.email}  |  ${COMPANY.phone}`, MARGIN, y + 22, { lineBreak: false });
   const pageLabel = `Page ${pageIndex} of ${totalPages}`;
-  doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#9CA3AF").text(pageLabel, PAGE_WIDTH - MARGIN - doc.widthOfString(pageLabel), y + 22, { lineBreak: false });
+  doc.font(F.semibold).fontSize(7.5).fillColor("#9CA3AF").text(pageLabel, PAGE_WIDTH - MARGIN - doc.widthOfString(pageLabel), y + 22, { lineBreak: false });
 };
 
 // ---------------------------------------------------------------------------
@@ -547,7 +679,19 @@ export const generateInvoicePdf = async (invoice) => {
   const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
   try {
     await new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ size: "A4", margin: { top: 40, left: MARGIN, right: MARGIN, bottom: 90 }, bufferPages: true });
+      // bufferPages keeps every page buffered until doc.end() so the footer can
+      // be redrawn on all pages with the correct "Page X of Y" numbering.
+      const doc = new PDFDocument({
+        size: "A4",
+        margin: { top: 40, left: MARGIN, right: MARGIN, bottom: BOTTOM_MARGIN },
+        bufferPages: true,
+      });
+      if (HAS_INTER) {
+        doc.registerFont(F.regular, FONT_FILES.regular);
+        doc.registerFont(F.medium, FONT_FILES.medium);
+        doc.registerFont(F.semibold, FONT_FILES.semibold);
+        doc.registerFont(F.bold, FONT_FILES.bold);
+      }
       const stream = fs.createWriteStream(tmpPath);
 
       stream.on("finish", resolve);
@@ -556,15 +700,17 @@ export const generateInvoicePdf = async (invoice) => {
 
       doc.pipe(stream);
       drawHeader(doc, invoice);
-      doc.y = 148;
+      doc.y = CONTENT_TOP;
 
       drawInfoCard(doc, invoice);
       drawProject(doc, invoice);
       drawItemsTable(doc, invoice);
-      drawTotals(doc, invoice);
-      drawNotes(doc, invoice);
+      drawNotesAndSummary(doc, invoice);
 
+      // Keep Terms & Conditions + Signature together on one page: only move them
+      // to the next page when they genuinely do not fit the remaining space.
       ensureSpace(doc, computeTermsHeight(doc, invoice) + SIGNATURE_HEIGHT);
+      drawTerms(doc, invoice);
       drawSignature(doc);
 
       const { count: totalPages } = doc.bufferedPageRange();
