@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import Quotation from "../models/Quotation.model.js";
 import QuotationSendLog from "../models/QuotationSendLog.model.js";
 import Lead from "../models/Lead.model.js";
+import Requirement from "../models/Requirement.model.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import ApiResponse from "../utils/response.js";
 import ApiError from "../utils/ApiError.js";
@@ -20,9 +21,12 @@ import {
 import { invalidateChartsCache } from "./dashboard.controller.js";
 import { moveLeadStage } from "../services/pipeline.service.js";
 import { refreshProjectPaymentState } from "../services/invoice.service.js";
+import { syncContactPipelineStage } from "../services/contactPipeline.service.js";
 
 const QUOTATION_KEYS = [
   "leadId",
+  "contactId",
+  "requirementId",
   "clientName",
   "businessName",
   "mobile",
@@ -87,6 +91,74 @@ const normalizePayload = (payload) => {
 
   if (clean.validUntil) clean.validUntil = new Date(clean.validUntil);
   return clean;
+};
+
+/**
+ * When a quotation is built from a collected requirement, inherit the client
+ * and project details from the requirement instead of re-entering them. The
+ * quotation stays permanently linked to the requirement + contact.
+ */
+const resolveRequirementPrefill = async (payload) => {
+  if (!payload.requirementId) return payload;
+  const requirement = await Requirement.findById(payload.requirementId).lean();
+  if (!requirement) throw ApiError.badRequest("Linked requirement not found");
+
+  const defaults = {
+    contactId: requirement.contactId,
+    leadId: requirement.leadId || payload.leadId || null,
+    clientName: requirement.clientName || requirement.businessName || "",
+    businessName: requirement.businessName || "",
+    mobile: requirement.mobileNumber || "",
+    email: requirement.email || "",
+    projectName: requirement.projectName || requirement.projectType || "",
+    projectDescription:
+      requirement.projectDescription ||
+      [requirement.mainObjective, requirement.requiredFeatures].filter(Boolean).join("\n") ||
+      "",
+    projectTimeline:
+      [requirement.expectedStartDate, requirement.expectedDeliveryDate].filter(Boolean).length
+        ? `Start: ${new Date(requirement.expectedStartDate).toLocaleDateString("en-IN")} → Delivery: ${new Date(requirement.expectedDeliveryDate).toLocaleDateString("en-IN")}`
+        : "",
+    paymentTerms: requirement.clientExpectations ? "" : "",
+  };
+
+  Object.entries(defaults).forEach(([key, value]) => {
+    if (payload[key] === undefined || payload[key] === null || payload[key] === "" || payload[key] === 0) {
+      payload[key] = value;
+    }
+  });
+
+  // Suggested line items from the requirement's estimated costs.
+  if ((payload.services === undefined || payload.services === null) &&
+      (Number(requirement.estimatedDevelopmentCost) > 0 || Number(requirement.estimatedMaintenanceCost) > 0)) {
+    const items = [];
+    if (Number(requirement.estimatedDevelopmentCost) > 0) {
+      items.push({
+        name: requirement.projectName || "Project Development",
+        description: "",
+        amount: Math.max(0, Number(requirement.estimatedDevelopmentCost) || 0),
+      });
+    }
+    if (Number(requirement.estimatedMaintenanceCost) > 0) {
+      items.push({
+        name: "Maintenance & Support",
+        description: "Ongoing maintenance",
+        amount: Math.max(0, Number(requirement.estimatedMaintenanceCost) || 0),
+      });
+    }
+    payload.services = items;
+  }
+
+  return payload;
+};
+
+const syncContactOnQuotation = async (quotation) => {
+  let contactId = quotation.contactId;
+  if (!contactId && quotation.requirementId) {
+    const requirement = await Requirement.findById(quotation.requirementId).select("contactId").lean().catch(() => null);
+    contactId = requirement?.contactId;
+  }
+  if (contactId) await syncContactPipelineStage(contactId);
 };
 
 const sendResultMessage = (result) =>
@@ -163,12 +235,14 @@ const regeneratePdf = async (quotation) => ensureQuotationPdf(quotation, { force
 
 export const createQuotation = asyncHandler(async (req, res) => {
   const payload = normalizePayload(pick(req.body, QUOTATION_KEYS));
+  await resolveRequirementPrefill(payload);
   payload.quotationNumber = await generateQuotationNumber();
   payload.status = "draft";
   payload.whatsappStatus = "pending";
   Object.assign(payload, ACTOR(req));
 
   const doc = await Quotation.create(payload);
+  await syncContactOnQuotation(doc);
   await syncLeadOnQuotation({
     quotation: doc,
     req,
@@ -236,9 +310,11 @@ export const updateQuotation = asyncHandler(async (req, res) => {
   if (!doc) throw ApiError.notFound("Quotation not found");
 
   const updates = normalizePayload(pick(req.body, QUOTATION_KEYS));
+  await resolveRequirementPrefill(updates);
   const changed = Object.keys(updates).filter((k) => updates[k] !== undefined);
   Object.assign(doc, updates);
   await doc.save();
+  await syncContactOnQuotation(doc);
 
   // Keep the stored PDF in sync with the latest quotation data so downloads,
   // previews and resends always reflect the current values.
@@ -281,7 +357,13 @@ export const approveQuotation = asyncHandler(async (req, res) => {
 
   doc.approved = true;
   doc.approvedAt = new Date();
+  doc.acceptanceStatus = "accepted";
+  doc.acceptedAt = new Date();
+  doc.rejectedAt = null;
+  doc.rejectionReason = "";
   await doc.save();
+
+  await syncContactOnQuotation(doc);
 
   if (doc.leadId) {
     try {
@@ -315,6 +397,30 @@ export const approveQuotation = asyncHandler(async (req, res) => {
   return ApiResponse.ok(res, "Quotation approved", doc);
 });
 
+/**
+ * POST /quotations/:id/reject
+ * Records client rejection (with optional reason) so the pipeline reflects the
+ * outcome and the admin can revise or follow up.
+ */
+export const rejectQuotation = asyncHandler(async (req, res) => {
+  const doc = await Quotation.findById(req.params.id);
+  if (!doc) throw ApiError.notFound("Quotation not found");
+  if (doc.acceptanceStatus === "rejected") throw ApiError.badRequest("Quotation is already rejected");
+
+  doc.acceptanceStatus = "rejected";
+  doc.rejectedAt = new Date();
+  doc.rejectionReason = String(req.body.reason || "").trim().slice(0, 1000);
+  if (doc.acceptanceStatus !== "accepted") {
+    doc.approved = false;
+  }
+  await doc.save();
+  await syncContactOnQuotation(doc);
+
+  auditLog(req, "update", "Quotation", doc._id, `Quotation ${doc.quotationNumber} rejected`);
+  invalidateChartsCache();
+  return ApiResponse.ok(res, "Quotation marked as rejected", doc);
+});
+
 // ============================================================
 // Send / resend / download
 // ============================================================
@@ -330,16 +436,20 @@ export const sendQuotation = asyncHandler(async (req, res) => {
     quotation = await Quotation.findById(req.body.quotationId);
     if (!quotation) throw ApiError.notFound("Quotation not found");
     const updates = normalizePayload(pick(req.body, QUOTATION_KEYS));
+    await resolveRequirementPrefill(updates);
     Object.assign(quotation, updates);
     await quotation.save();
   } else {
     const payload = normalizePayload(pick(req.body, QUOTATION_KEYS));
+    await resolveRequirementPrefill(payload);
     payload.quotationNumber = await generateQuotationNumber();
     payload.status = "draft";
     payload.whatsappStatus = "pending";
     Object.assign(payload, ACTOR(req));
     quotation = await Quotation.create(payload);
   }
+
+  await syncContactOnQuotation(quotation);
 
   // Any failure in PDF generation, cloud upload or the WhatsApp API is caught
   // here so the quotation + a send log are persisted as "failed" and the admin

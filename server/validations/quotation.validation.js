@@ -23,6 +23,8 @@ const servicesRule = (field = "services") =>
 
 const commonFields = [
   body("leadId").optional({ values: "falsy" }).isMongoId().withMessage("Invalid lead id"),
+  body("contactId").optional({ values: "falsy" }).isMongoId().withMessage("Invalid contact id"),
+  body("requirementId").optional({ values: "falsy" }).isMongoId().withMessage("Invalid requirement id"),
   body("clientName")
     .trim()
     .notEmpty()
@@ -83,6 +85,11 @@ export const quotationIdParam = [param("id").isMongoId().withMessage("Invalid qu
 export const approveQuotationValidation = [
   ...quotationIdParam,
   body("note").optional({ values: "falsy" }).isString().isLength({ max: 1000 }).withMessage("Note must be 1000 characters or fewer"),
+];
+
+export const rejectQuotationValidation = [
+  ...quotationIdParam,
+  body("reason").optional({ values: "falsy" }).isString().isLength({ max: 1000 }).withMessage("Reason must be 1000 characters or fewer"),
 ];
 
 export const listQuotationsValidation = [

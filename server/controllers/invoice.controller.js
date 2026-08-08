@@ -4,6 +4,7 @@ import Invoice from "../models/Invoice.model.js";
 import InvoiceSendLog from "../models/InvoiceSendLog.model.js";
 import Quotation from "../models/Quotation.model.js";
 import Lead from "../models/Lead.model.js";
+import Requirement from "../models/Requirement.model.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import ApiResponse, { getPaginationMeta } from "../utils/response.js";
 import ApiError from "../utils/ApiError.js";
@@ -23,9 +24,12 @@ import {
 } from "../services/invoice.service.js";
 import { invalidateChartsCache } from "./dashboard.controller.js";
 import { moveLeadStage, recordLeadActivity } from "../services/pipeline.service.js";
+import { syncContactPipelineStage } from "../services/contactPipeline.service.js";
 
 const INVOICE_KEYS = [
   "leadId",
+  "contactId",
+  "requirementId",
   "clientName",
   "businessName",
   "mobile",
@@ -313,7 +317,23 @@ const persistSendResult = async ({ invoice, req, result, channel, isRetry = fals
 
 const regeneratePdf = async (invoice) => ensureInvoicePdf(invoice, { force: true });
 
-/** Log an "invoice created" activity on the linked lead's timeline. */
+/** Keep the contact's sales pipeline in sync whenever an invoice changes. */
+const syncContactOnInvoice = async (invoice) => {
+  let contactId = invoice.contactId;
+  if (!contactId && invoice.requirementId) {
+    const requirement = await Requirement.findById(invoice.requirementId).select("contactId").lean().catch(() => null);
+    contactId = requirement?.contactId;
+  }
+  if (!contactId && invoice.quotationId) {
+    const quotation = await Quotation.findById(invoice.quotationId).select("contactId").lean().catch(() => null);
+    contactId = quotation?.contactId;
+  }
+  if (contactId) await syncContactPipelineStage(contactId);
+};
+
+/**
+ * Log an "invoice created" activity on the linked lead's timeline.
+ */
 const syncLeadOnInvoiceCreated = async ({ invoice, req, note }) => {
   if (!invoice?.leadId) return;
   try {
@@ -411,6 +431,7 @@ export const createInvoice = asyncHandler(async (req, res) => {
 
   const doc = await Invoice.create(payload);
   await syncProjectState(doc);
+  await syncContactOnInvoice(doc);
   await syncLeadOnInvoiceCreated({ invoice: doc, req });
   try {
     await regeneratePdf(doc);
@@ -567,6 +588,7 @@ export const sendInvoice = asyncHandler(async (req, res) => {
     applyInvoicePaymentState(invoice);
     await invoice.save();
     await syncProjectState(invoice);
+    await syncContactOnInvoice(invoice);
   } else {
     const body = pick(req.body, [...INVOICE_KEYS, "quotationId"]);
     if (body.quotationId) {
@@ -601,6 +623,7 @@ export const sendInvoice = asyncHandler(async (req, res) => {
     invoice = await Invoice.create(payload);
     isNewInvoice = true;
     await syncProjectState(invoice);
+    await syncContactOnInvoice(invoice);
   }
 
   let result = { status: "failed", error: "Unknown error while sending" };
@@ -732,6 +755,7 @@ export const recordInvoicePayment = asyncHandler(async (req, res) => {
   await invoice.save();
 
   await syncProjectState(invoice);
+  await syncContactOnInvoice(invoice);
 
   try {
     await regeneratePdf(invoice);
@@ -766,6 +790,7 @@ export const markInvoicePaid = asyncHandler(async (req, res) => {
   await invoice.save();
 
   await syncProjectState(invoice);
+  await syncContactOnInvoice(invoice);
 
   try {
     await regeneratePdf(invoice);

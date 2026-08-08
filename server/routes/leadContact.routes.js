@@ -13,6 +13,7 @@ import {
   getLeadContactStats,
   getSentHistory,
   getLeadContactHistory,
+  getContactPipelineBoard,
   previewWhatsApp,
   convertContactLead,
 } from "../controllers/leadContact.controller.js";
@@ -40,6 +41,7 @@ router.use(protect);
 // Preview / statistics / history before the :id route
 router.get("/stats", asyncHandler(getLeadContactStats));
 router.get("/history", asyncHandler(getSentHistory));
+router.get("/pipeline-board", asyncHandler(getContactPipelineBoard));
 router.post("/preview", validate(sendWhatsAppValidation), asyncHandler(previewWhatsApp));
 router.post("/send-whatsapp", validate(sendWhatsAppValidation), asyncHandler(sendWhatsApp));
 router.post("/resend/:id", validate(resendWhatsAppValidation), asyncHandler(resendWhatsApp));

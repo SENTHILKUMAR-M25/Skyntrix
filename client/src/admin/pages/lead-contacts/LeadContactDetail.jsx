@@ -5,13 +5,17 @@ import {
   FaCalendarCheck, FaUserCheck, FaClipboardList, FaCopy, FaExternalLinkAlt,
   FaPaperPlane, FaEnvelope,
 } from "react-icons/fa";
+import { FaFileInvoiceDollar } from "react-icons/fa6";
 import { adminGet, adminPost, adminPut, adminDelete } from "../../api";
 import { useAuth } from "../../AuthContext";
 import { useToast } from "../../Toast";
 import { Badge, Button, EmptyState, Field, Input, Loading, Modal, PageHeader, Select, Textarea } from "../../components/Ui";
 import WhatsAppPreviewModal from "../../components/lead-contacts/WhatsAppPreviewModal";
 import LeadContactTimeline from "../../components/lead-contacts/LeadContactTimeline";
+import RequirementFormModal from "../../components/requirements/RequirementFormModal";
 import { FOLLOW_UP_OPTIONS, formatMobileNumber, fullDateTime } from "../../utils/leadContact";
+import { contactStageMeta, contactProgressPercent, REQUIREMENT_STATUS_BADGE, requirementEstimate } from "../../utils/requirement";
+import { cn } from "../../../lib/utils";
 
 const STATUS_BADGE = {
   draft: "bg-amber-100 text-amber-700 border-amber-200",
@@ -37,6 +41,10 @@ export default function LeadContactDetail() {
   const [loading, setLoading] = useState(true);
   const [entries, setEntries] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(true);
+
+  const [requirements, setRequirements] = useState([]);
+  const [requirementOpen, setRequirementOpen] = useState(false);
+  const [requirementEdit, setRequirementEdit] = useState(null);
 
   const [preview, setPreview] = useState(false);
   const [sending, setSending] = useState(false);
@@ -77,8 +85,18 @@ export default function LeadContactDetail() {
     }
   }, [id, toast]);
 
+  const fetchRequirements = useCallback(async () => {
+    try {
+      const res = await adminGet(`/requirements/by-contact/${id}`);
+      setRequirements(res.data || []);
+    } catch (e) {
+      toast.error(e.message);
+    }
+  }, [id, toast]);
+
   useEffect(() => { fetchLead(); }, [fetchLead]);
   useEffect(() => { fetchHistory(); }, [fetchHistory]);
+  useEffect(() => { fetchRequirements(); }, [fetchRequirements]);
 
   // Auto-open the send modal when navigated with ?send=1
   useEffect(() => {
@@ -174,6 +192,9 @@ export default function LeadContactDetail() {
       : []),
   ];
 
+  const stageMeta = contactStageMeta(lead.pipelineStage);
+  const latestReq = requirements[0] || null;
+
   return (
     <div>
       <button onClick={() => navigate("/admin/lead-contacts")} className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-ink/50 transition-colors hover:text-primary">
@@ -190,14 +211,30 @@ export default function LeadContactDetail() {
             <div className="mt-0.5 flex flex-wrap items-center gap-2">
               <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize ${STATUS_BADGE[lead.status]}`}>{lead.status}</span>
               <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize ${WA_BADGE[lead.whatsappStatus]}`}>WhatsApp: {lead.whatsappStatus}</span>
+              <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${stageMeta.badge}`}>{stageMeta.label}</span>
               <Badge value={lead.followUpStatus} />
               {(lead.tags || []).map((t) => (
                 <span key={t} className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">{t}</span>
               ))}
             </div>
+            <div className="mt-3 flex items-center gap-2">
+              <div className="h-1.5 w-40 overflow-hidden rounded-full bg-base">
+                <div className={cn("h-full rounded-full", stageMeta.solid)} style={{ width: `${contactProgressPercent(lead.pipelineStage)}%` }} />
+              </div>
+              <span className="text-[11px] font-semibold text-ink/45">{contactProgressPercent(lead.pipelineStage)}%</span>
+            </div>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            onClick={() => navigate(`/admin/quotations/create${latestReq ? `?requirementId=${latestReq._id}` : `?contactId=${id}`}`)}
+          >
+            <FaFileInvoiceDollar /> Create Quotation
+          </Button>
+          <Button variant="secondary" onClick={() => { setRequirementEdit(null); setRequirementOpen(true); }}>
+            <FaClipboardList /> {latestReq ? "Manage Requirement" : "Collect Requirement"}
+          </Button>
           <Button variant="secondary" onClick={() => navigate(`/admin/lead-contacts/${id}/edit`)}>
             <FaEdit /> Edit
           </Button>
@@ -281,6 +318,41 @@ export default function LeadContactDetail() {
               </Button>
             )}
           </div>
+
+          {/* Requirements */}
+          <div className="card p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="font-display text-sm font-bold uppercase tracking-wide text-ink/60">Requirements</h2>
+              <Button size="sm" variant="secondary" onClick={() => { setRequirementEdit(null); setRequirementOpen(true); }}>
+                <FaClipboardList className="h-3 w-3" /> Collect
+              </Button>
+            </div>
+            {requirements.length === 0 ? (
+              <p className="rounded-xl bg-base/60 px-4 py-5 text-center text-sm text-ink/40">
+                No requirement collected yet. Collect one to move this contact toward quotation.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {requirements.map((r) => (
+                  <button
+                    key={r._id}
+                    onClick={() => setRequirementEdit(r)}
+                    className="flex w-full items-center gap-3 rounded-xl border border-base bg-base/30 px-3 py-2.5 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-ink">{r.projectName || r.projectType || "Requirement"}</span>
+                      <span className="block text-xs text-ink/50">
+                        {r.projectType || "—"} · {requirementEstimate(r) ? `Est. ${requirementEstimate(r).toLocaleString("en-IN")}` : "No estimate"}
+                      </span>
+                    </span>
+                    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium capitalize ${REQUIREMENT_STATUS_BADGE[r.status] || "bg-slate-100 text-slate-600 border-slate-200"}`}>
+                      {String(r.status || "draft").replace(/_/g, " ")}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Right column */}
@@ -324,6 +396,21 @@ export default function LeadContactDetail() {
         onSend={sendNow}
         sending={sending}
       />
+
+      {(requirementOpen || requirementEdit) && (
+        <RequirementFormModal
+          open={true}
+          onClose={() => { setRequirementOpen(false); setRequirementEdit(null); }}
+          contact={lead}
+          requirement={requirementEdit}
+          onSaved={() => {
+            setRequirementOpen(false);
+            setRequirementEdit(null);
+            fetchLead();
+            fetchRequirements();
+          }}
+        />
+      )}
 
       <Modal open={deleteTarget} onClose={() => setDeleteTarget(false)} title="Delete lead" size="sm"
         footer={<>

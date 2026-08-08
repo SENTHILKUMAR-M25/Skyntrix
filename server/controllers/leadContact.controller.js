@@ -3,6 +3,9 @@ import Lead from "../models/Lead.model.js";
 import LeadContact from "../models/LeadContact.model.js";
 import LeadContactHistory from "../models/LeadContactHistory.model.js";
 import WhatsAppSendLog from "../models/WhatsAppSendLog.model.js";
+import Requirement from "../models/Requirement.model.js";
+import Quotation from "../models/Quotation.model.js";
+import Invoice from "../models/Invoice.model.js";
 import Admin from "../models/Admin.model.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import ApiResponse from "../utils/response.js";
@@ -11,6 +14,7 @@ import { getPaginationMeta } from "../utils/response.js";
 import { auditLog } from "../middleware/audit.middleware.js";
 import { buildWhatsAppMessage, normalizeMobileNumber, sendWhatsAppMessage, buildWaMeUrl } from "../services/whatsapp.service.js";
 import { invalidateChartsCache } from "./dashboard.controller.js";
+import { syncContactPipelineStage, CONTACT_PIPELINE } from "../services/contactPipeline.service.js";
 
 const ACTOR = (req) => ({
   createdBy: req.admin?._id || null,
@@ -31,14 +35,45 @@ const pick = (obj, keys) => {
   return out;
 };
 
-const CONTACT_KEYS = ["businessName", "mobileNumber", "summary", "demoLink", "websiteLink", "notes", "tags", "followUpStatus", "nextFollowUpAt", "assignedTo"];
+const CONTACT_KEYS = [
+  "businessName",
+  "mobileNumber",
+  "summary",
+  "demoLink",
+  "websiteLink",
+  "contactPerson",
+  "email",
+  "location",
+  "source",
+  "contactDate",
+  "contactChannel",
+  "contactNotes",
+  "notes",
+  "tags",
+  "followUpStatus",
+  "nextFollowUpAt",
+  "assignedTo",
+];
 
 const toE164 = (value) => normalizeMobileNumber(value) || String(value).trim();
+
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
 const applyAssignedName = async (payload) => {
   if (payload.assignedTo) {
     const admin = await Admin.findById(payload.assignedTo).select("name").lean().catch(() => null);
     if (admin) payload.assignedToName = admin.name;
+  }
+  return payload;
+};
+
+/** Track when the Skyntrix team has actually been in touch with the lead. */
+const applyContactTracking = (payload) => {
+  const hasContactInfo =
+    payload.contactDate || payload.contactChannel || (payload.contactNotes && String(payload.contactNotes).trim());
+  if (hasContactInfo) {
+    payload.contactedAt = payload.contactDate || new Date();
+    payload.lastContactAt = new Date();
   }
   return payload;
 };
@@ -51,10 +86,12 @@ export const createLeadContact = asyncHandler(async (req, res) => {
   const payload = pick(req.body, [...CONTACT_KEYS, "status"]);
   if (payload.mobileNumber) payload.mobileNumber = toE164(payload.mobileNumber);
   payload.status = "draft";
+  applyContactTracking(payload);
   await applyAssignedName(payload);
   Object.assign(payload, ACTOR(req));
 
   const doc = await LeadContact.create(payload);
+  await syncContactPipelineStage(doc._id);
   await addHistory(doc._id, req, "create", `Lead created for ${doc.businessName}`);
   auditLog(req, "create", "LeadContact", doc._id, `Created lead contact: ${doc.businessName}`);
   invalidateChartsCache();
@@ -69,10 +106,11 @@ export const listLeadContacts = asyncHandler(async (req, res) => {
 
   const filter = {};
 
-  const { search, status, whatsappStatus, from, to } = req.query;
+  const { search, status, whatsappStatus, pipelineStage, from, to } = req.query;
 
   if (status && status !== "all") filter.status = status;
   if (whatsappStatus && whatsappStatus !== "all") filter.whatsappStatus = whatsappStatus;
+  if (pipelineStage && pipelineStage !== "all") filter.pipelineStage = pipelineStage;
 
   if (from || to) {
     filter.createdAt = {};
@@ -112,6 +150,145 @@ export const getLeadContact = asyncHandler(async (req, res) => {
   return ApiResponse.ok(res, "Lead fetched", doc);
 });
 
+/**
+ * GET /lead-contacts/pipeline-board
+ * Grouped Kanban data for the contact-centric sales pipeline. Every contact is
+ * placed in the column matching its auto-derived pipelineStage and enriched
+ * with its latest requirement / quotation / invoice for quick decisions.
+ */
+export const getContactPipelineBoard = asyncHandler(async (req, res) => {
+  const limitPerColumn = Math.min(100, parseInt(req.query.limit, 10) || 60);
+  const search = req.query.search ? String(req.query.search).trim() : "";
+
+  const filter = {};
+  if (search) {
+    const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    filter.$or = [
+      { businessName: { $regex: escaped, $options: "i" } },
+      { mobileNumber: { $regex: escaped, $options: "i" } },
+      { contactPerson: { $regex: escaped, $options: "i" } },
+      { summary: { $regex: escaped, $options: "i" } },
+    ];
+  }
+
+  const allContacts = await LeadContact.find(filter)
+    .sort({ updatedAt: -1 })
+    .limit(2000)
+    .select(
+      "businessName contactPerson mobileNumber email location pipelineStage summary tags contactChannel contactedAt lastContactAt nextFollowUpAt assignedToName"
+    )
+    .lean();
+
+  const ids = allContacts.map((c) => c._id);
+
+  const [requirementGroups, quotationGroups, invoiceGroups] = await Promise.all([
+    Requirement.aggregate([
+      { $match: { contactId: { $in: ids } } },
+      { $sort: { updatedAt: -1 } },
+      { $group: { _id: "$contactId", doc: { $first: "$$ROOT" } } },
+    ]),
+    Quotation.aggregate([
+      { $match: { contactId: { $in: ids } } },
+      { $sort: { createdAt: -1 } },
+      { $group: { _id: "$contactId", doc: { $first: "$$ROOT" } } },
+    ]),
+    Invoice.aggregate([
+      { $match: { contactId: { $in: ids } } },
+      { $sort: { createdAt: -1 } },
+      { $group: { _id: "$contactId", doc: { $first: "$$ROOT" } } },
+    ]),
+  ]);
+
+  const requirementByContact = new Map(requirementGroups.map((g) => [String(g._id), g.doc]));
+  const quotationByContact = new Map(quotationGroups.map((g) => [String(g._id), g.doc]));
+  const invoiceByContact = new Map(invoiceGroups.map((g) => [String(g._id), g.doc]));
+
+  const stageOf = (c) => c.pipelineStage || "lead";
+
+  const board = CONTACT_PIPELINE.map((stageDef) => {
+    const contacts = allContacts
+      .filter((c) => stageOf(c) === stageDef.stage)
+      .slice(0, limitPerColumn)
+      .map((c) => {
+        const requirement = requirementByContact.get(String(c._id));
+        const quotation = quotationByContact.get(String(c._id));
+        const invoice = invoiceByContact.get(String(c._id));
+        return {
+          _id: c._id,
+          businessName: c.businessName,
+          contactPerson: c.contactPerson,
+          mobileNumber: c.mobileNumber,
+          email: c.email,
+          location: c.location,
+          summary: c.summary,
+          tags: c.tags,
+          contactChannel: c.contactChannel,
+          contactedAt: c.contactedAt,
+          lastContactAt: c.lastContactAt,
+          nextFollowUpAt: c.nextFollowUpAt,
+          assignedToName: c.assignedToName,
+          pipelineStage: stageOf(c),
+          requirement: requirement
+            ? {
+                _id: requirement._id,
+                projectName: requirement.projectName,
+                projectType: requirement.projectType,
+                status: requirement.status,
+                estimate: round2((Number(requirement.estimatedDevelopmentCost) || 0) + (Number(requirement.estimatedMaintenanceCost) || 0)),
+              }
+            : null,
+          quotation: quotation
+            ? {
+                _id: quotation._id,
+                quotationNumber: quotation.quotationNumber,
+                status: quotation.status,
+                acceptanceStatus: quotation.acceptanceStatus,
+                totalAmount: quotation.totalAmount,
+              }
+            : null,
+          invoice: invoice
+            ? {
+                _id: invoice._id,
+                invoiceNumber: invoice.invoiceNumber,
+                status: invoice.status,
+                totalAmount: invoice.totalAmount,
+                amountPaid: invoice.amountPaid,
+                balanceDue: invoice.balanceDue,
+              }
+            : null,
+        };
+      });
+
+    return {
+      stage: stageDef.stage,
+      label: stageDef.label,
+      color: stageDef.color,
+      count: allContacts.filter((c) => stageOf(c) === stageDef.stage).length,
+      contacts,
+    };
+  });
+
+  const byStage = (s) => allContacts.filter((c) => stageOf(c) === s).length;
+  const estimatedValue = board.reduce(
+    (sum, col) => sum + col.contacts.reduce((a, c) => a + (c.requirement?.estimate || 0), 0),
+    0
+  );
+
+  return ApiResponse.ok(res, "Contact pipeline board fetched", {
+    board,
+    summary: {
+      totalCount: allContacts.length,
+      atLead: byStage("lead"),
+      atContact: byStage("contact"),
+      readyForQuotation: byStage("ready_for_quotation"),
+      quotationCount: byStage("quotation_created") + byStage("quotation_accepted"),
+      invoiceCount: byStage("invoice_created") + byStage("payment"),
+      completed: byStage("completed"),
+      estimatedValue,
+    },
+  });
+});
+
 export const updateLeadContact = asyncHandler(async (req, res) => {
   const doc = await LeadContact.findById(req.params.id);
   if (!doc) throw ApiError.notFound("Lead not found");
@@ -119,10 +296,12 @@ export const updateLeadContact = asyncHandler(async (req, res) => {
   const updates = pick(req.body, [...CONTACT_KEYS, "status", "whatsappStatus"]);
   if (updates.mobileNumber) updates.mobileNumber = toE164(updates.mobileNumber);
   if (updates.assignedTo) await applyAssignedName(updates);
+  applyContactTracking(updates);
 
   const changed = Object.keys(updates).filter((k) => updates[k] !== undefined);
   Object.assign(doc, updates);
   await doc.save();
+  await syncContactPipelineStage(doc._id);
 
   if (changed.length) {
     const only = (keys) => changed.length === keys.length && keys.every((k) => changed.includes(k));
@@ -200,7 +379,13 @@ const persistSendResult = async ({ lead, req, message, result, isRetry = false }
   const ok = result.status === "success" || result.status === "fallback";
   lead.status = ok ? "sent" : "failed";
   lead.whatsappStatus = ok ? "sent" : "failed";
+  if (ok) {
+    lead.lastContactAt = new Date();
+    if (!lead.contactedAt) lead.contactedAt = new Date();
+    if (!lead.contactChannel) lead.contactChannel = "whatsapp";
+  }
   await lead.save();
+  await syncContactPipelineStage(lead._id);
 
   await addSendLog(req, {
     leadContactId: lead._id,

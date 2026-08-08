@@ -51,6 +51,16 @@ const contactFields = [
 
 export const leadContactCreateValidation = [
   ...contactFields,
+  body("contactPerson").optional({ values: "falsy" }).trim().isLength({ max: 200 }).withMessage("Contact person must be 200 characters or fewer"),
+  body("email").optional({ values: "falsy" }).trim().isEmail().withMessage("Enter a valid email address").isLength({ max: 200 }).withMessage("Email must be 200 characters or fewer"),
+  body("location").optional({ values: "falsy" }).trim().isLength({ max: 200 }).withMessage("Location must be 200 characters or fewer"),
+  body("source").optional({ values: "falsy" }).trim().isLength({ max: 200 }).withMessage("Source must be 200 characters or fewer"),
+  body("contactDate").optional({ values: "falsy" }).isISO8601().withMessage("Invalid contact date"),
+  body("contactChannel")
+    .optional({ values: "falsy" })
+    .isIn(["call", "whatsapp", "email", "other"])
+    .withMessage("Invalid contact channel"),
+  body("contactNotes").optional({ values: "falsy" }).trim().isLength({ max: 3000 }).withMessage("Contact notes must be 3000 characters or fewer"),
   body("notes").optional({ values: "falsy" }).trim().isLength({ max: 3000 }).withMessage("Notes must be 3000 characters or fewer"),
   tagsRule(),
   body("followUpStatus")
@@ -69,6 +79,16 @@ export const leadContactUpdateValidation = [
   optionalUrl("websiteLink", "Website link"),
   body("status").optional({ values: "falsy" }).isIn(["draft", "sent", "failed"]).withMessage("Invalid status"),
   body("whatsappStatus").optional({ values: "falsy" }).isIn(["pending", "sent", "failed"]).withMessage("Invalid WhatsApp status"),
+  body("contactPerson").optional({ values: "falsy" }).trim().isLength({ max: 200 }).withMessage("Contact person must be 200 characters or fewer"),
+  body("email").optional({ values: "falsy" }).trim().isEmail().withMessage("Enter a valid email address").isLength({ max: 200 }).withMessage("Email must be 200 characters or fewer"),
+  body("location").optional({ values: "falsy" }).trim().isLength({ max: 200 }).withMessage("Location must be 200 characters or fewer"),
+  body("source").optional({ values: "falsy" }).trim().isLength({ max: 200 }).withMessage("Source must be 200 characters or fewer"),
+  body("contactDate").optional({ values: "falsy" }).isISO8601().withMessage("Invalid contact date"),
+  body("contactChannel")
+    .optional({ values: "falsy" })
+    .isIn(["call", "whatsapp", "email", "other"])
+    .withMessage("Invalid contact channel"),
+  body("contactNotes").optional({ values: "falsy" }).trim().isLength({ max: 3000 }).withMessage("Contact notes must be 3000 characters or fewer"),
   body("notes").optional({ values: "falsy" }).trim().isLength({ max: 3000 }).withMessage("Notes must be 3000 characters or fewer"),
   tagsRule(),
   body("followUpStatus").optional({ values: "falsy" }).isIn(["none", "follow-up", "converted", "closed"]).withMessage("Invalid follow-up status"),

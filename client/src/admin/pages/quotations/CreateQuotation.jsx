@@ -34,6 +34,8 @@ export default function CreateQuotation() {
   const isEdit = Boolean(id);
   const [searchParams] = useSearchParams();
   const leadId = searchParams.get("leadId") || "";
+  const requirementId = searchParams.get("requirementId") || "";
+  const contactId = searchParams.get("contactId") || "";
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -44,10 +46,11 @@ export default function CreateQuotation() {
 
   const { fields, append, remove } = useFieldArray({ control, name: "services" });
 
-  const [loading, setLoading] = useState(isEdit || Boolean(leadId));
+  const [loading, setLoading] = useState(isEdit || Boolean(leadId) || Boolean(requirementId) || Boolean(contactId));
   const [preview, setPreview] = useState(false);
   const [pendingPayload, setPendingPayload] = useState(null);
   const [sending, setSending] = useState(false);
+  const [prefillNotice, setPrefillNotice] = useState("");
 
   const services = watch("services") || [];
   const watched = watch();
@@ -77,6 +80,62 @@ export default function CreateQuotation() {
       }
     })();
   }, [leadId, isEdit, reset, toast]);
+
+  // Prefill from a collected requirement (client + project + suggested line items).
+  useEffect(() => {
+    if (!requirementId || isEdit) return;
+    (async () => {
+      try {
+        const res = await adminGet(`/requirements/${requirementId}`);
+        const d = res.data || {};
+        const services = [];
+        if (Number(d.estimatedDevelopmentCost) > 0) {
+          services.push({ name: "Development", description: d.projectType || "Development", amount: Number(d.estimatedDevelopmentCost) });
+        }
+        if (Number(d.estimatedMaintenanceCost) > 0) {
+          services.push({ name: "Maintenance & Support", description: "Maintenance and support", amount: Number(d.estimatedMaintenanceCost) });
+        }
+        reset((current) => ({
+          ...current,
+          clientName: d.clientName || "",
+          businessName: d.businessName || "",
+          mobile: d.mobileNumber ? (normalizeMobileNumber(d.mobileNumber)?.slice(2) || d.mobileNumber) : "",
+          email: d.email || "",
+          projectName: d.projectName || d.projectType || "",
+          projectDescription: d.projectDescription || d.businessDescription || "",
+          services: services.length ? services : current.services,
+        }));
+        setPrefillNotice(`Requirement pre-filled (${d.projectName || d.projectType || "collected requirement"})`);
+      } catch (e) {
+        toast.error(e.message);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [requirementId, isEdit, reset, toast]);
+
+  // Prefill client details from a lead contact (no requirement linked yet).
+  useEffect(() => {
+    if (!contactId || isEdit || requirementId) return;
+    (async () => {
+      try {
+        const res = await adminGet(`/lead-contacts/${contactId}`);
+        const d = res.data || {};
+        reset((current) => ({
+          ...current,
+          clientName: d.contactPerson || d.businessName || "",
+          businessName: d.businessName || "",
+          mobile: d.mobileNumber ? (normalizeMobileNumber(d.mobileNumber)?.slice(2) || d.mobileNumber) : "",
+          email: d.email || "",
+        }));
+        setPrefillNotice(`Contact details pre-filled for ${d.businessName || "the client"}`);
+      } catch (e) {
+        toast.error(e.message);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [contactId, isEdit, requirementId, reset, toast]);
 
   // Load existing quotation in edit mode.
   useEffect(() => {
@@ -120,6 +179,8 @@ export default function CreateQuotation() {
 
   const buildPayload = (values) => ({
     leadId: leadId || undefined,
+    requirementId: requirementId || undefined,
+    contactId: contactId || undefined,
     clientName: values.clientName.trim(),
     businessName: values.businessName.trim() || undefined,
     mobile: normalizeMobileNumber(values.mobile) || values.mobile,
@@ -210,6 +271,13 @@ export default function CreateQuotation() {
         title={isEdit ? "Edit Quotation" : "Create Quotation"}
         subtitle="Fill in the details, generate a branded PDF and send it on WhatsApp."
       />
+
+      {prefillNotice && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-ink/70">
+          <span>{prefillNotice}</span>
+          <button type="button" onClick={() => setPrefillNotice("")} className="text-ink/40 transition-colors hover:text-ink" aria-label="Dismiss">✕</button>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit(saveAsDraft)} className="max-w-5xl space-y-6">
         {/* Client details */}

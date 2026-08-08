@@ -36,6 +36,8 @@ const invoiceSchema = new mongoose.Schema(
     quotationId: { type: mongoose.Schema.Types.ObjectId, ref: "Quotation", default: null },
     quotationNumber: { type: String, trim: true, default: "" },
     leadId: { type: mongoose.Schema.Types.ObjectId, ref: "Lead", default: null },
+    contactId: { type: mongoose.Schema.Types.ObjectId, ref: "LeadContact", default: null },
+    requirementId: { type: mongoose.Schema.Types.ObjectId, ref: "Requirement", default: null },
     type: { type: String, enum: INVOICE_TYPES, default: "full" },
 
     clientName: { type: String, required: true, trim: true },
@@ -94,6 +96,7 @@ invoiceSchema.index(
 invoiceSchema.index({ status: 1, createdAt: -1 });
 invoiceSchema.index({ paymentStatus: 1, dueDate: 1 });
 invoiceSchema.index({ leadId: 1, createdAt: -1 });
+invoiceSchema.index({ contactId: 1, createdAt: -1 });
 invoiceSchema.index({
   clientName: "text",
   businessName: "text",

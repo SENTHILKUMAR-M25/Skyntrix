@@ -8,6 +8,7 @@ import {
   sendQuotation,
   resendQuotation,
   approveQuotation,
+  rejectQuotation,
   downloadQuotation,
   getQuotationStats,
   getQuotationSendLogs,
@@ -21,6 +22,7 @@ import {
   updateQuotationValidation,
   sendQuotationValidation,
   approveQuotationValidation,
+  rejectQuotationValidation,
   quotationIdParam,
   listQuotationsValidation,
   quotationLogsQuery,
@@ -36,6 +38,7 @@ router.get("/stats", asyncHandler(getQuotationStats));
 router.post("/send", validate(sendQuotationValidation), asyncHandler(sendQuotation));
 router.post("/:id/resend", validate(quotationIdParam), asyncHandler(resendQuotation));
 router.post("/:id/approve", validate(approveQuotationValidation), asyncHandler(approveQuotation));
+router.post("/:id/reject", validate(rejectQuotationValidation), asyncHandler(rejectQuotation));
 router.get("/:id/download", validate(quotationIdParam), asyncHandler(downloadQuotation));
 router.get("/:id/logs", validate([...quotationIdParam, ...quotationLogsQuery]), asyncHandler(getQuotationSendLogs));
 

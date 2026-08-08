@@ -14,6 +14,7 @@ import dashboardRoutes from "./dashboard.routes.js";
 import quotationRoutes from "./quotation.routes.js";
 import invoiceRoutes from "./invoice.routes.js";
 import receiptRoutes from "./receipt.routes.js";
+import requirementRoutes from "./requirement.routes.js";
 import healthRoutes from "./health.routes.js";
 
 const router = Router();
@@ -37,5 +38,6 @@ router.use("/dashboard", dashboardRoutes);
 router.use("/quotations", quotationRoutes);
 router.use("/invoices", invoiceRoutes);
 router.use("/receipts", receiptRoutes);
+router.use("/requirements", requirementRoutes);
 
 export default router;

@@ -3,11 +3,12 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   FaArrowLeft, FaEdit, FaTrash, FaDownload, FaWhatsapp, FaBuilding, FaPhoneAlt, FaEnvelope,
   FaUserTie, FaProjectDiagram, FaCalendarCheck, FaFilePdf, FaCopy, FaExternalLinkAlt, FaRedoAlt,
+  FaCheckCircle, FaBan, FaFileInvoiceDollar,
 } from "react-icons/fa";
 import { adminGet, adminPost, adminDelete } from "../../api";
 import { useAuth } from "../../AuthContext";
 import { useToast } from "../../Toast";
-import { Button, EmptyState, Loading, Modal, PageHeader } from "../../components/Ui";
+import { Button, EmptyState, Loading, Modal, PageHeader, Textarea } from "../../components/Ui";
 import QuotationPreviewModal from "../../components/quotations/QuotationPreviewModal";
 import {
   formatMoney, formatMobileNumber, formatDate, fullDateTime, timeAgo,
@@ -30,6 +31,11 @@ const LOG_BADGE = {
   failed: "bg-red-100 text-red-700 border-red-200",
   template: "bg-amber-100 text-amber-700 border-amber-200",
 };
+const ACCEPTANCE_BADGE = {
+  pending: "bg-slate-100 text-slate-600 border-slate-200",
+  accepted: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  rejected: "bg-red-100 text-red-700 border-red-200",
+};
 
 const copy = (text) => navigator.clipboard?.writeText(text).catch(() => {});
 
@@ -49,6 +55,10 @@ export default function QuotationDetail() {
   const [deleteTarget, setDeleteTarget] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [copiedLog, setCopiedLog] = useState("");
+  const [accepting, setAccepting] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejecting, setRejecting] = useState(false);
 
   const isManager = ["super-admin", "admin"].includes(admin?.role);
   const canDelete = isManager || !!admin?.permissions?.delete;
@@ -127,6 +137,34 @@ export default function QuotationDetail() {
     }
   };
 
+  const handleAccept = async () => {
+    setAccepting(true);
+    try {
+      await adminPost(`/quotations/${id}/approve`);
+      toast.ok("Quotation accepted - moving the contact forward");
+      fetchQuotation();
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setAccepting(false);
+    }
+  };
+
+  const handleReject = async () => {
+    setRejecting(true);
+    try {
+      await adminPost(`/quotations/${id}/reject`, { reason: rejectReason.trim() });
+      toast.ok("Quotation rejected");
+      setRejectOpen(false);
+      setRejectReason("");
+      fetchQuotation();
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setRejecting(false);
+    }
+  };
+
   if (loading) return <Loading label="Loading quotation..." />;
   if (!quotation) return <EmptyState title="Quotation not found" />;
 
@@ -159,6 +197,21 @@ export default function QuotationDetail() {
             <Button variant="secondary" onClick={handleDownload}>
               <FaDownload /> Download PDF
             </Button>
+            {quotation.acceptanceStatus === "accepted" && (
+              <Button onClick={() => navigate(`/admin/invoices/create?quotationId=${id}`)} className="bg-primary-gradient">
+                <FaFileInvoiceDollar /> Create Invoice
+              </Button>
+            )}
+            {quotation.acceptanceStatus === "pending" && (
+              <>
+                <Button variant="danger" onClick={() => setRejectOpen(true)}>
+                  <FaBan /> Reject
+                </Button>
+                <Button onClick={handleAccept} loading={accepting}>
+                  <FaCheckCircle /> Accept
+                </Button>
+              </>
+            )}
             <Button onClick={() => setPreview(true)} className="bg-[#25D366] hover:bg-[#1fb959]">
               <FaWhatsapp /> {quotation.whatsappStatus === "sent" ? "Send Again" : "Send WhatsApp"}
             </Button>
@@ -174,7 +227,15 @@ export default function QuotationDetail() {
       <div className="mb-5 flex flex-wrap items-center gap-2">
         <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize ${STATUS_BADGE[quotation.status] || STATUS_BADGE.draft}`}>{quotation.status}</span>
         <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize ${WA_BADGE[quotation.whatsappStatus] || WA_BADGE.pending}`}>WhatsApp: {quotation.whatsappStatus}</span>
+        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize ${ACCEPTANCE_BADGE[quotation.acceptanceStatus] || ACCEPTANCE_BADGE.pending}`}>
+          Client: {quotation.acceptanceStatus || "pending"}
+        </span>
         <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink">Grand Total: <span className="text-primary">{formatMoney(quotation.totalAmount)}</span></span>
+        {quotation.acceptanceStatus === "rejected" && quotation.rejectionReason && (
+          <span className="text-xs text-red-600" title={quotation.rejectionReason}>
+            Rejection reason: {quotation.rejectionReason}
+          </span>
+        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,360px)_1fr]">
@@ -354,6 +415,19 @@ export default function QuotationDetail() {
         sending={sending}
         title={quotation.whatsappStatus === "sent" ? "Resend quotation on WhatsApp" : "Send quotation on WhatsApp"}
       />
+
+      <Modal open={rejectOpen} onClose={() => setRejectOpen(false)} title="Reject quotation" size="sm"
+        footer={<>
+          <Button variant="ghost" onClick={() => setRejectOpen(false)}>Cancel</Button>
+          <Button variant="danger" onClick={handleReject} loading={rejecting}>Reject quotation</Button>
+        </>}>
+        <div className="space-y-3">
+          <p className="text-ink/70">
+            Mark <span className="font-semibold">{quotation.quotationNumber}</span> as rejected by the client. The contact will stop here in the pipeline.
+          </p>
+          <Textarea rows={3} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="Reason for rejection (optional)" />
+        </div>
+      </Modal>
 
       <Modal open={deleteTarget} onClose={() => setDeleteTarget(false)} title="Delete quotation" size="sm"
         footer={<>

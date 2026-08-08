@@ -25,6 +25,7 @@ import CreateInvoice from "./pages/invoices/CreateInvoice";
 import InvoiceDetail from "./pages/invoices/InvoiceDetail";
 import Receipts from "./pages/receipts/Receipts";
 import ReceiptDetail from "./pages/receipts/ReceiptDetail";
+import Requirements from "./pages/requirements/Requirements";
 import Careers from "./pages/Careers";
 import Newsletter from "./pages/Newsletter";
 import Settings from "./pages/Settings";
@@ -63,6 +64,7 @@ export default function AdminRoutes() {
               <Route path="invoices/:id/edit" element={<CreateInvoice />} />
               <Route path="receipts" element={<Receipts />} />
               <Route path="receipts/:id" element={<ReceiptDetail />} />
+              <Route path="requirements" element={<Requirements />} />
               <Route path="careers" element={<Careers />} />
               <Route path="newsletter" element={<Newsletter />} />
               <Route path="settings" element={<Settings />} />

@@ -2,6 +2,7 @@ import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { FaTachometerAlt, FaCogs, FaImages, FaUsers, FaComments, FaNewspaper, FaBriefcase, FaEnvelope, FaPaperPlane, FaCog, FaShieldAlt, FaSignOutAlt, FaAddressBook, FaChevronDown, FaListAlt, FaPlusCircle, FaHistory, FaColumns } from "react-icons/fa";
 import { FaFileInvoiceDollar, FaFileCirclePlus, FaFileLines } from "react-icons/fa6";
 import { FaReceipt } from "react-icons/fa6";
+import { FaClipboardList } from "react-icons/fa6";
 import { useState } from "react";
 import { useAuth } from "../AuthContext";
 import { useToast } from "../Toast";
@@ -16,6 +17,7 @@ const links = [
   { to: "/admin/blog", label: "Blog Posts", icon: FaNewspaper },
   { to: "/admin/leads", label: "Leads", icon: FaEnvelope },
   { to: "/admin/pipeline", label: "Pipeline", icon: FaColumns },
+  { to: "/admin/requirements", label: "Requirements", icon: FaClipboardList },
   { to: "/admin/careers", label: "Applications", icon: FaBriefcase },
   { to: "/admin/newsletter", label: "Newsletter", icon: FaPaperPlane },
   { to: "/admin/settings", label: "Settings", icon: FaCog },
